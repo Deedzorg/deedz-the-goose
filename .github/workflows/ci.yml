@@ -11,6 +11,22 @@ jobs:
       matrix:
         node: [20, 22]
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: goose
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d goose"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/goose
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,3 +36,5 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Syntax checks
         run: npm test
+      - name: Full online integration test
+        run: npm run test:online
