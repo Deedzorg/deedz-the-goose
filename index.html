@@ -3,28 +3,77 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Deedz the Goose: Honk Commander</title>
+  <title>Deedz the Goose Online</title>
+  <meta name="description" content="Play Deedz the Goose Online, chase the leaderboard, and add to the global honk count." />
   <link rel="stylesheet" href="styles/main.css" />
 </head>
 <body>
-  <main class="game-shell">
-    <section class="topbar">
+  <main class="site-shell">
+    <header class="topbar">
       <div>
-        <h1>Deedz the Goose</h1>
-        <p>Honk Commander — browser platformer prototype</p>
+        <p class="eyebrow">DEEDZ THE GOOSE · ONLINE</p>
+        <h1>Honk Commander</h1>
+        <p>Play the run, beat the boss, and leave your mark on the global Goose Board.</p>
       </div>
-      <div class="controls-hint">
-        Move: A/D · Jump: Space · Honk: H · Stick: J · Dash: Shift · Crumbs: K
+      <div class="live-state">
+        <span class="live-dot"></span>
+        <span id="networkState">Connecting…</span>
+        <strong><span id="onlinePlayers">0</span> online</strong>
       </div>
-    </section>
+    </header>
 
-    <canvas id="game" width="1280" height="720"></canvas>
+    <div class="content-grid">
+      <section class="game-column">
+        <canvas id="game" width="1280" height="720"></canvas>
 
-    <section class="bottombar">
-      <button id="startBtn">Start / Restart</button>
-      <button id="muteBtn">Music: On</button>
-      <span id="status">Ready.</span>
-    </section>
+        <section class="bottombar">
+          <div class="buttons">
+            <button id="startBtn">Start / Restart</button>
+            <button id="muteBtn" class="secondary">Music: On</button>
+          </div>
+          <span id="status">Ready.</span>
+        </section>
+
+        <p class="controls-hint">Move A/D · Jump Space · Honk H · Stick J · Dash Shift · Crumbs K</p>
+      </section>
+
+      <aside class="online-panel">
+        <section class="player-card">
+          <label for="playerName">Goose name</label>
+          <input id="playerName" maxlength="24" value="Deedz" autocomplete="nickname" />
+          <small>Your best runs are saved to the global leaderboard.</small>
+        </section>
+
+        <section class="stats-grid" aria-label="Global game stats">
+          <div><strong id="globalHonks">0</strong><span>Honks</span></div>
+          <div><strong id="globalPlays">0</strong><span>Runs</span></div>
+          <div><strong id="globalWins">0</strong><span>Boss wins</span></div>
+        </section>
+
+        <section class="leaderboard-card">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">GLOBAL</p>
+              <h2>Goose Board</h2>
+            </div>
+            <span>Top 10</span>
+          </div>
+          <ol id="leaderboard" class="leaderboard">
+            <li class="empty-score">Loading scores…</li>
+          </ol>
+        </section>
+
+        <section class="about-card">
+          <strong>A real live-service experiment.</strong>
+          <p>Scores and community stats live in PostgreSQL while the game server can be updated or replaced independently.</p>
+        </section>
+      </aside>
+    </div>
+
+    <footer>
+      <span>Deedz the Goose Online</span>
+      <span>Persistent scores · live presence · managed deployment</span>
+    </footer>
   </main>
 
   <script type="module" src="src/main.js"></script>
