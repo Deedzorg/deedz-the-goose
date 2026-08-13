@@ -45,6 +45,9 @@ export class GameplayPolishSystem {
     this.engine = engine;
     this.mousePointerId = null;
     this.spawnRestore = null;
+    this.autoBossTimer = null;
+    this.autoBossLevel = null;
+    this.lastEvolution = null;
 
     this.originalUiUpdate = engine.ui.update;
     this.uiUpdateWrapper = (input) => {
@@ -52,6 +55,17 @@ export class GameplayPolishSystem {
       return this.originalUiUpdate.call(engine.ui, input);
     };
     engine.ui.update = this.uiUpdateWrapper;
+
+    this.originalToast = engine.ui.toast;
+    this.toastWrapper = (message, options) => {
+      let text = String(message ?? '');
+      text = text.replaceAll('Flock Energy', 'Boss Charge');
+      if (text.includes('fill Boss Charge and defeat Baron Breadstorm')) {
+        text = 'Echo charged. Baron Breadstorm is being called to Foxfire Fortress. Win the boss challenge to unlock the gate.';
+      }
+      return this.originalToast.call(engine.ui, text, options);
+    };
+    engine.ui.toast = this.toastWrapper;
 
     this.canvas = engine.renderer.canvas;
     this._pointerDown = (event) => this.#pointerDown(event);
@@ -65,9 +79,10 @@ export class GameplayPolishSystem {
 
     this.unsubscribers = [
       engine.events.on('mission:started', () => this.#missionStarted(), { priority: 250 }),
-      engine.events.on('scene:pushed', () => this.#syncPointerState()),
-      engine.events.on('scene:popped', () => this.#syncPointerState()),
-      engine.events.on('scene:changed', () => this.#syncPointerState()),
+      engine.events.on('evolution:changed', (state) => this.#evolutionChanged(state), { priority: -1000 }),
+      engine.events.on('scene:pushed', () => this.#syncSceneState()),
+      engine.events.on('scene:popped', () => this.#syncSceneState()),
+      engine.events.on('scene:changed', () => this.#syncSceneState()),
     ];
   }
 
@@ -81,6 +96,84 @@ export class GameplayPolishSystem {
     // the entity level makes the existing scene spawn guard actually safe.
     this.spawnRestore = lockPlayerForSpawn(world.player, this.engine, 8);
     this.engine.ui.toast('Controls: controller, keyboard, touch, or hold left mouse to charge a crumb throw.', { duration: 3600 });
+  }
+
+  #bossTarget(state = this.lastEvolution ?? {}) {
+    const saved = Math.max(0, Number(this.engine.save.get('progress.bossGateTarget', 0)) || 0);
+    if (saved > 0) return saved;
+    const wins = Math.max(0, Number(state.bossWins) || 0);
+    return wins > 0 ? wins : 1;
+  }
+
+  #evolutionChanged(state = {}) {
+    this.lastEvolution = state;
+    queueMicrotask(() => queueMicrotask(() => this.#refreshProgressLabels(state)));
+
+    const world = this.#world();
+    const required = Math.max(1, Number(world?.level?.requiredCrystals) || 3);
+    const activeCrystals = this.engine.entities.findByTag('crystal').filter((crystal) => crystal.activated).length;
+    const bossActive = Boolean(state.shared?.boss?.active && !state.shared?.boss?.defeated);
+    const bossComplete = Math.max(0, Number(state.bossWins) || 0) >= this.#bossTarget(state);
+    const ready = Boolean(state.ready || Number(state.xp) >= Number(state.goal));
+
+    if (world?.evolution && ready && activeCrystals >= required && !bossComplete && !bossActive) {
+      this.#startAutoBossCharge(state.level);
+    } else if (bossActive || bossComplete || !world) {
+      this.#stopAutoBossCharge();
+    }
+  }
+
+  #startAutoBossCharge(level) {
+    if (this.autoBossTimer && this.autoBossLevel === level) return;
+    this.#stopAutoBossCharge();
+    this.autoBossLevel = level;
+    this.engine.ui.toast('Echo objective complete — calling Baron Breadstorm to Foxfire Fortress now.', { type: 'warning', duration: 4200 });
+
+    const tick = () => {
+      const world = this.#world();
+      const state = world?.evolution?.snapshot?.();
+      if (!world?.evolution || !state) {
+        this.#stopAutoBossCharge();
+        return;
+      }
+      const bossActive = Boolean(state.shared?.boss?.active && !state.shared?.boss?.defeated);
+      const bossComplete = Math.max(0, Number(state.bossWins) || 0) >= this.#bossTarget(state);
+      if (bossActive || bossComplete) {
+        this.#stopAutoBossCharge();
+        return;
+      }
+      const energy = Math.max(0, Number(state.shared?.flockEnergy) || 0);
+      const goal = Math.max(1, Number(state.shared?.flockGoal) || 180);
+      const missing = Math.max(0, goal - energy);
+      if (missing > 0) world.evolution.contributeFlockEnergy(Math.min(30, missing), 'Echo challenge ready');
+    };
+
+    this.autoBossTimer = setInterval(tick, 120);
+    tick();
+  }
+
+  #stopAutoBossCharge() {
+    if (this.autoBossTimer) clearInterval(this.autoBossTimer);
+    this.autoBossTimer = null;
+    this.autoBossLevel = null;
+  }
+
+  #refreshProgressLabels(state = this.lastEvolution ?? {}) {
+    if (!this.#world()) return;
+    const energy = Math.max(0, Number(state.shared?.flockEnergy) || 0);
+    const goal = Math.max(1, Number(state.shared?.flockGoal) || 180);
+    const flock = document.querySelector?.('[data-flock]');
+    if (flock) flock.textContent = `Boss Charge ${energy}/${goal}`;
+
+    const adventure = document.querySelector?.('[data-adventure]');
+    if (adventure) {
+      adventure.textContent = adventure.textContent.replaceAll('Flock Energy', 'Boss Charge').replace(/· Flock (\d+\/\d+)/g, '· Boss Charge $1');
+      const bossComplete = Math.max(0, Number(state.bossWins) || 0) >= this.#bossTarget(state);
+      const bossActive = Boolean(state.shared?.boss?.active && !state.shared?.boss?.defeated);
+      if (!bossComplete && !bossActive && (state.ready || Number(state.xp) >= Number(state.goal))) {
+        adventure.textContent = `NEXT · BARON BREADSTORM INBOUND — Boss Charge ${energy}/${goal} auto-filling · head to Foxfire Fortress, far right`;
+      }
+    }
   }
 
   #pointerDown(event) {
@@ -103,13 +196,15 @@ export class GameplayPolishSystem {
     this.engine.input.releaseVirtualAction('throw');
   }
 
-  #syncPointerState() {
+  #syncSceneState() {
     if (this.engine.scenes?.active?.id !== 'world') this.#releaseMouseThrow();
+    if (!this.#world()) this.#stopAutoBossCharge();
   }
 
   destroy() {
     this.spawnRestore?.();
     this.spawnRestore = null;
+    this.#stopAutoBossCharge();
     this.#releaseMouseThrow();
     for (const off of this.unsubscribers) off();
     this.unsubscribers = [];
@@ -119,5 +214,6 @@ export class GameplayPolishSystem {
     this.canvas?.removeEventListener('lostpointercapture', this._pointerUp);
     window.removeEventListener('blur', this._blur);
     if (this.engine.ui.update === this.uiUpdateWrapper) this.engine.ui.update = this.originalUiUpdate;
+    if (this.engine.ui.toast === this.toastWrapper) this.engine.ui.toast = this.originalToast;
   }
 }
