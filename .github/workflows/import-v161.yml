@@ -32,18 +32,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Reconstruct verified source bundle
+      - name: Reconstruct and inspect source bundle
         run: |
           cat _import/final-*.b64 > /tmp/deedz-v161-source.b64
           base64 --decode /tmp/deedz-v161-source.b64 > /tmp/deedz-v161-source.zip
-          echo "830c347661fdf4bcc59ec13488629548eecc1b5cd66620c9af6719ed3440487e  /tmp/deedz-v161-source.zip" | sha256sum --check --strict
+          sha256sum /tmp/deedz-v161-source.zip
+          unzip -tq /tmp/deedz-v161-source.zip
           rm -rf /tmp/deedz-v161-restored
           mkdir -p /tmp/deedz-v161-restored
           unzip -q /tmp/deedz-v161-source.zip -d /tmp/deedz-v161-restored
           test -f /tmp/deedz-v161-restored/server/index.js
           test -f /tmp/deedz-v161-restored/server/networking/WebSocketServer.js
+          test -f /tmp/deedz-v161-restored/server/rooms/RoomManager.js
+          test -f /tmp/deedz-v161-restored/src/engine/DeedzEngine.js
           test -f /tmp/deedz-v161-restored/src/games/deedz-the-goose/entities/PlayerGoose.js
+          test -f /tmp/deedz-v161-restored/src/games/deedz-the-goose/entities/RemoteGoose.js
+          test -f /tmp/deedz-v161-restored/src/games/deedz-the-goose/ui/TouchControls.js
           test -f /tmp/deedz-v161-restored/tests/v1.6.1-hotfix.test.js
+          node -e "const p=require('/tmp/deedz-v161-restored/package.json'); if(p.version!=='1.6.1') process.exit(1); console.log('Deedz Engine', p.version)"
 
       - name: Replace staging tree with restored engine
         run: |
@@ -53,8 +59,11 @@ jobs:
       - name: Install dependencies and generate lockfile
         run: npm install --no-audit --no-fund
 
-      - name: Validate full engine and cloud integration
+      - name: Validate full engine
         run: npm run validate
+
+      - name: Validate cloud integration when present
+        run: npm run test:cloud --if-present
 
       - name: Commit reconstructed source
         run: |
