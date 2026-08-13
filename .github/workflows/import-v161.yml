@@ -1,15 +1,15 @@
-name: Restore canonical Deedz Engine v1.6.1
+name: Restore verified Deedz Engine v1.6.1
 
 on:
   push:
     branches: [infrastry-v1.6.1]
+    paths: [_import/READY]
 
 permissions:
   contents: write
 
 jobs:
   restore:
-    if: contains(github.event.head_commit.message, 'Trigger canonical v1.6.1 import')
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -31,25 +31,35 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Reconstruct verified source archive
+
+      - name: Reconstruct verified source bundle
         run: |
-          cat _import/chunk-*.b64 > /tmp/deedz-v161-source.b64
-          base64 --decode /tmp/deedz-v161-source.b64 > /tmp/deedz-v161-source.tar.gz
-          echo "9e5ced21eacc4d35bc116951ae6e75e260b216885e164dd910d5bebdab008211  /tmp/deedz-v161-source.tar.gz" | sha256sum --check --strict
-      - name: Restore canonical source
+          cat _import/final-*.b64 > /tmp/deedz-v161-source.b64
+          base64 --decode /tmp/deedz-v161-source.b64 > /tmp/deedz-v161-source.zip
+          echo "830c347661fdf4bcc59ec13488629548eecc1b5cd66620c9af6719ed3440487e  /tmp/deedz-v161-source.zip" | sha256sum --check --strict
+          rm -rf /tmp/deedz-v161-restored
+          mkdir -p /tmp/deedz-v161-restored
+          unzip -q /tmp/deedz-v161-source.zip -d /tmp/deedz-v161-restored
+          test -f /tmp/deedz-v161-restored/server/index.js
+          test -f /tmp/deedz-v161-restored/server/networking/WebSocketServer.js
+          test -f /tmp/deedz-v161-restored/src/games/deedz-the-goose/entities/PlayerGoose.js
+          test -f /tmp/deedz-v161-restored/tests/v1.6.1-hotfix.test.js
+
+      - name: Replace staging tree with restored engine
         run: |
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          tar -xzf /tmp/deedz-v161-source.tar.gz -C .
+          cp -a /tmp/deedz-v161-restored/. .
+
       - name: Install dependencies and generate lockfile
         run: npm install --no-audit --no-fund
-      - name: Validate original Deedz Engine
+
+      - name: Validate full engine and cloud integration
         run: npm run validate
-      - name: Validate Infrastry PostgreSQL and multiplayer integration
-        run: npm run test:cloud
-      - name: Commit restored source
+
+      - name: Commit reconstructed source
         run: |
           git config user.name "Deedz Engine Restore"
           git config user.email "37595805+Deedzorg@users.noreply.github.com"
           git add -A
-          git commit -m "Restore canonical Deedz Engine v1.6.1 for Infrastry"
+          git commit -m "Restore full Deedz Engine v1.6.1 for Infrastry"
           git push origin HEAD:infrastry-v1.6.1
