@@ -2,6 +2,7 @@ import { AudioSystem } from './audio.js';
 import { makeLevel } from './levels.js';
 import { Player, Cat, keys, rectsOverlap } from './entities.js';
 import { drawWorld } from './render.js';
+import { gooseOnline } from './online.js';
 
 const canvas = document.querySelector('#game');
 const ctx = canvas.getContext('2d');
@@ -13,15 +14,25 @@ const audio = new AudioSystem();
 const game = {
   mode: 'start', time: 0, cam: 0,
   level: makeLevel(Date.now() & 99999),
-  player: new Player(), cat: new Cat(), crumbs: [], honks: [], particles: []
+  player: new Player(), cat: new Cat(), crumbs: [], honks: [], particles: [],
+  onlineSubmitted: true
 };
 
 function restart() {
+  if (game.mode === 'play' && !game.onlineSubmitted) submitRun(false);
   game.mode = 'play'; game.time = 0; game.cam = 0;
   game.level = makeLevel(Date.now() & 99999);
   game.player = new Player(); game.cat = new Cat(); game.crumbs = []; game.honks = [];
+  game.onlineSubmitted = false;
   audio.ensure();
+  gooseOnline.startRun();
   statusEl.textContent = 'Goose deployed. Commander Keen mode engaged.';
+}
+
+function submitRun(completed) {
+  if (game.onlineSubmitted) return;
+  game.onlineSubmitted = true;
+  gooseOnline.finishRun(game.player.score, completed);
 }
 
 startBtn.onclick = restart;
@@ -32,7 +43,12 @@ addEventListener('keydown', e => {
   if (game.mode !== 'play') return;
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') game.player.jump(audio);
   if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') game.player.doDash(audio);
-  if (e.code === 'KeyH' && !game.player.honkCd) { game.player.honkCd = 1.2; game.honks.push({ x: game.player.x, y: game.player.y, dir: game.player.facing, life: .32 }); audio.beep(230, .22, 'sawtooth', .07); }
+  if (e.code === 'KeyH' && !game.player.honkCd) {
+    game.player.honkCd = 1.2;
+    game.honks.push({ x: game.player.x, y: game.player.y, dir: game.player.facing, life: .32 });
+    gooseOnline.honk();
+    audio.beep(230, .22, 'sawtooth', .07);
+  }
   if (e.code === 'KeyK' && !game.player.crumbCd && game.player.ammo > 0) { game.player.crumbCd = .18; game.player.ammo--; game.crumbs.push({ x: game.player.x + game.player.facing * 46, y: game.player.y - 70, vx: game.player.facing * 620, vy: -120, life: 1.1 }); audio.beep(820, .05, 'square', .045); }
 });
 
@@ -91,7 +107,12 @@ function update(dt) {
     if (keys.has('KeyJ') && !player.stickCd && rectsOverlap(player.stickRect(), br)) { player.stickCd = .28; b.hp -= 2; player.score += 40; audio.beep(180,.08,'sawtooth',.07); }
     for (const c of game.crumbs) if (!c.dead && rectsOverlap({x:c.x-10,y:c.y-7,w:20,h:14}, br)) { c.dead = true; b.hp--; player.score += 20; }
     for (const h of game.honks) if (rectsOverlap({x:h.x + h.dir*20, y:h.y-115, w:220, h:125}, br)) b.hp -= 0.03;
-    if (b.hp <= 0) { b.dead = true; player.score += 1500; statusEl.textContent = 'Boss defeated. Cat approved.'; }
+    if (b.hp <= 0) {
+      b.dead = true;
+      player.score += 1500;
+      statusEl.textContent = 'Boss defeated. Cat approved. Score saved to the Goose Board!';
+      submitRun(true);
+    }
   }
 
   for (const c of game.crumbs) { c.life -= dt; c.x += c.vx * dt; c.y += c.vy * dt; c.vy += 900 * dt; if (c.life <= 0) c.dead = true; }
@@ -100,5 +121,9 @@ function update(dt) {
   game.honks = game.honks.filter(h => h.life > 0);
 
   audio.update(dt, player.hp <= 2, b.active && !b.dead);
-  if (player.y > 980 || player.hp <= 0) { game.mode = 'start'; statusEl.textContent = 'Deedz got bonked. Press Start to try again.'; }
+  if (player.y > 980 || player.hp <= 0) {
+    submitRun(false);
+    game.mode = 'start';
+    statusEl.textContent = 'Deedz got bonked. Score saved. Press Start to try again.';
+  }
 }
