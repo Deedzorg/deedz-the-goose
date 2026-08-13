@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Deedz the Goose Online</title>
-  <meta name="description" content="Play Deedz the Goose Online, chase the leaderboard, and add to the global honk count." />
+  <meta name="description" content="Play Deedz the Goose Online with live flock multiplayer, persistent scores, controller support and global honks." />
   <link rel="stylesheet" href="styles/main.css" />
 </head>
 <body>
@@ -13,7 +13,7 @@
       <div>
         <p class="eyebrow">DEEDZ THE GOOSE · ONLINE</p>
         <h1>Honk Commander</h1>
-        <p>Play the run, beat the boss, and leave your mark on the global Goose Board.</p>
+        <p>Join the flock, beat the Bread Fox, and leave your mark on the global Goose Board.</p>
       </div>
       <div class="live-state">
         <span class="live-dot"></span>
@@ -24,24 +24,83 @@
 
     <div class="content-grid">
       <section class="game-column">
-        <canvas id="game" width="1280" height="720"></canvas>
+        <div class="game-stage">
+          <canvas id="game" width="1280" height="720" aria-label="Deedz the Goose game"></canvas>
+
+          <div id="gameMenu" class="game-menu">
+            <section id="launchPanel" class="menu-card launch-panel">
+              <p class="eyebrow">LAUNCH BAY</p>
+              <h2>Choose your goose</h2>
+              <p class="menu-copy">Your name, goose color, movement and actions are shared with everyone currently in the flock.</p>
+
+              <div class="goose-selector" aria-label="Goose color selector">
+                <button class="goose-choice" data-goose-color="#dc2626" data-goose-accent="#facc15" aria-label="Classic red goose"><span style="--goose:#dc2626;--accent:#facc15"></span>Classic</button>
+                <button class="goose-choice" data-goose-color="#ec4899" data-goose-accent="#f9a8d4" aria-label="Pink goose"><span style="--goose:#ec4899;--accent:#f9a8d4"></span>Pink</button>
+                <button class="goose-choice" data-goose-color="#eab308" data-goose-accent="#fef08a" aria-label="Gold goose"><span style="--goose:#eab308;--accent:#fef08a"></span>Gold</button>
+                <button class="goose-choice" data-goose-color="#2563eb" data-goose-accent="#67e8f9" aria-label="Blue goose"><span style="--goose:#2563eb;--accent:#67e8f9"></span>Blue</button>
+                <button class="goose-choice" data-goose-color="#16a34a" data-goose-accent="#86efac" aria-label="Green goose"><span style="--goose:#16a34a;--accent:#86efac"></span>Green</button>
+                <button class="goose-choice" data-goose-color="#7c3aed" data-goose-accent="#c4b5fd" aria-label="Purple goose"><span style="--goose:#7c3aed;--accent:#c4b5fd"></span>Purple</button>
+              </div>
+
+              <div class="control-grid">
+                <div><strong>Keyboard</strong><span>A/D move · Space jump · Shift dash · H honk · J stick · K crumbs</span></div>
+                <div><strong>Xbox</strong><span>Left stick move · A jump · B dash · Y stick · LB/RB honk · X/RT crumbs</span></div>
+                <div><strong>Mouse</strong><span>Left click throws crumbs · right click honks toward the pointer</span></div>
+              </div>
+
+              <div class="menu-actions">
+                <button id="playBtn" class="primary-big">Deploy Goose</button>
+                <span id="controllerState" class="controller-state">Keyboard · mouse · touch ready</span>
+              </div>
+            </section>
+
+            <section id="pausePanel" class="menu-card pause-panel is-hidden">
+              <p class="eyebrow">MISSION CONTROL</p>
+              <h2>Flock paused</h2>
+              <p class="menu-copy">The online connection stays active while your local run is paused.</p>
+              <div class="pause-actions">
+                <button id="resumeBtn">Resume</button>
+                <button id="restartMenuBtn" class="secondary">Restart Run</button>
+                <button id="mainMenuBtn" class="secondary">Launch Bay</button>
+              </div>
+              <div class="control-grid compact">
+                <div><strong>Pause</strong><span>Esc or Xbox Menu</span></div>
+                <div><strong>Multiplayer</strong><span>Names, goose colors, movement and combat actions sync live.</span></div>
+              </div>
+            </section>
+          </div>
+
+          <div class="touch-controls" aria-label="Touch game controls">
+            <div class="touch-cluster move-cluster">
+              <button data-control="left" aria-label="Move left">◀</button>
+              <button data-control="right" aria-label="Move right">▶</button>
+            </div>
+            <div class="touch-cluster action-cluster">
+              <button data-control="dash" aria-label="Dash">DASH</button>
+              <button data-control="honk" aria-label="Honk">HONK</button>
+              <button data-control="crumb" aria-label="Throw crumb">CRUMB</button>
+              <button data-control="jump" class="jump-touch" aria-label="Jump">JUMP</button>
+            </div>
+          </div>
+        </div>
 
         <section class="bottombar">
           <div class="buttons">
             <button id="startBtn">Start / Restart</button>
+            <button id="missionBtn" class="secondary">Mission Control</button>
             <button id="muteBtn" class="secondary">Music: On</button>
           </div>
-          <span id="status">Ready.</span>
+          <span id="status">Launch Bay ready.</span>
         </section>
 
-        <p class="controls-hint">Move A/D · Jump Space · Honk H · Stick J · Dash Shift · Crumbs K</p>
+        <p class="controls-hint">Keyboard · Xbox/Gamepad · Mouse · Touch · Live flock multiplayer</p>
       </section>
 
       <aside class="online-panel">
         <section class="player-card">
           <label for="playerName">Goose name</label>
           <input id="playerName" maxlength="24" value="Deedz" autocomplete="nickname" />
-          <small>Your best runs are saved to the global leaderboard.</small>
+          <small>Your selected identity is shown to other players and your completed runs are saved to the global Goose Board.</small>
         </section>
 
         <section class="stats-grid" aria-label="Global game stats">
@@ -64,15 +123,15 @@
         </section>
 
         <section class="about-card">
-          <strong>A real live-service experiment.</strong>
-          <p>Scores and community stats live in PostgreSQL while the game server can be updated or replaced independently.</p>
+          <strong>One game, one live flock.</strong>
+          <p>Player movement and actions travel over WebSockets. Scores and community stats live in PostgreSQL so they survive application updates and runtime replacement.</p>
         </section>
       </aside>
     </div>
 
     <footer>
       <span>Deedz the Goose Online</span>
-      <span>Persistent scores · live presence · managed deployment</span>
+      <span>Live flock · persistent scores · controller support · managed deployment</span>
     </footer>
   </main>
 
