@@ -1,5 +1,7 @@
-export function makeLevel(seed = 1) {
-  let s = seed;
+const SHARED_FLOCK_SEED = 42626;
+
+export function makeLevel() {
+  let s = SHARED_FLOCK_SEED;
   const rand = () => {
     s = (s * 1664525 + 1013904223) >>> 0;
     return s / 4294967296;
@@ -27,6 +29,11 @@ export function makeLevel(seed = 1) {
       platforms.push({ x, y, w, h: 100, type: rand() < 0.25 ? 'stone' : 'grass' });
     }
 
+    if (rand() < 0.18) {
+      const movingPlatform = moving.at(-1);
+      if (movingPlatform) movingPlatform.t = 0;
+    }
+
     if (rand() < 0.55) springs.push({ x: x + 50 + rand() * (w - 100), y: y - 18, w: 44, h: 18 });
     if (rand() < 0.35) enemies.push({ x: x + 90 + rand() * Math.max(80, w - 180), y: y - 38, vx: rand() < 0.5 ? -1 : 1, type: rand() < 0.35 ? 'crow' : rand() < 0.55 ? 'raccoon' : 'fox', hp: 2 });
     if (rand() < 0.2) powerups.push({ x: x + w / 2, y: y - 105, type: rand() < 0.35 ? 'feather' : 'soda', taken: false });
@@ -44,5 +51,5 @@ export function makeLevel(seed = 1) {
   const boss = { x: x + 700, y: 560, hp: 35, maxHp: 35, active: false, dead: false, t: 0 };
   platforms.push({ x: x + 300, y: 620, w: 1500, h: 100, type: 'boss' });
 
-  return { platforms, springs, moving, coins, enemies, props, powerups, boss, endX: x + 1500 };
+  return { platforms, springs, moving, coins, enemies, props, powerups, boss, endX: x + 1500, seed: SHARED_FLOCK_SEED };
 }
