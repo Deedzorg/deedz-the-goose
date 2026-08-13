@@ -27,7 +27,8 @@ export class CombatSystem {
     if (hits) this.engine.events.emit('combat:hit', { player, hits, range, damage });
   }
 
-  #throwCrumb({ player, x = player?.x ?? 0, y = player?.y ?? 0, facing = player?.facing ?? 1, damage = 1, strength = 790, lift = 155, duration = 2.2, charge = 0.5 } = {}) {
+  #throwCrumb({ player, x = player?.x ?? 0, y = player?.y ?? 0, facing = player?.facing ?? 1, damage = 1, strength = 790, lift = 155, duration = 2.2, charge = 0.5, projectileStyle = 'crumb' } = {}) {
+    const ember = projectileStyle === 'ember-bolt';
     const projectile = new CrumbProjectile({
       x,
       y,
@@ -38,10 +39,11 @@ export class CombatSystem {
       lift,
       duration,
       charge,
-      color: player?.character?.accent ?? 0xf7ca76,
+      style: projectileStyle,
+      color: ember ? 0xffd05a : (player?.character?.accent ?? 0xf7ca76),
     });
     this.engine.entities.addImmediate(projectile, this.parent);
-    this.engine.physics.addBody(projectile, { gravityScale: 0.22 + (1 - charge) * 0.08, maxSpeedX: 1180, maxSpeedY: 980 });
+    this.engine.physics.addBody(projectile, { gravityScale: ember ? 0.025 : 0.22 + (1 - charge) * 0.08, maxSpeedX: ember ? 1420 : 1180, maxSpeedY: 980 });
     this.engine.physics.addCollider(projectile.collider);
     this.engine.events.emit('achievement:unlock', { id: 'crumb-slinger' });
   }
@@ -55,14 +57,15 @@ export class CombatSystem {
     if (projectile.hit || projectile.remote || projectile.destroyed || enemy.destroyed) return;
     projectile.hit = true;
     projectile.collider.enabled = false;
-    const knockbackX = projectile.facing * (430 + projectile.charge * 330);
-    const knockbackY = -190 - projectile.charge * 170;
+    const ember = projectile.style === 'ember-bolt';
+    const knockbackX = projectile.facing * (ember ? 520 : 430 + projectile.charge * 330);
+    const knockbackY = ember ? -80 : -190 - projectile.charge * 170;
     this.#damageEnemy(enemy, projectile.damage, knockbackX, knockbackY, {
       kind: 'crumb',
       source: projectile,
       broadcast: true,
     });
-    this.engine.entities.add(new WingBurst({ x: projectile.x, y: projectile.y, color: 0xf7ca76, count: 7, label: 'CRUMB!' }), this.parent);
+    this.engine.entities.add(new WingBurst({ x: projectile.x, y: projectile.y, color: ember ? 0xff5f45 : 0xf7ca76, count: ember ? 11 : 7, label: ember ? 'EMBER!' : 'CRUMB!' }), this.parent);
     this.engine.entities.remove(projectile);
   }
 
