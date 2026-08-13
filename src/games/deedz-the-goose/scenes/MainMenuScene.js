@@ -2,7 +2,12 @@ import { Graphics, Text } from 'pixi.js';
 import { Scene } from '../../../engine/scenes/Scene.js';
 import { Screen } from '../../../engine/ui/Screen.js';
 import { Button } from '../../../engine/ui/Button.js';
-import { characters } from '../data/characters.js';
+import { gooseClasses, gooseColors, networkCharacterId, setActiveGooseColor } from '../data/characters.js';
+
+function dots(value = 3) {
+  const count = Math.max(1, Math.min(5, Number(value) || 1));
+  return `${'●'.repeat(count)}${'○'.repeat(5 - count)}`;
+}
 
 export class MainMenuScene extends Scene {
   constructor() { super('main-menu'); }
@@ -23,13 +28,20 @@ export class MainMenuScene extends Scene {
     panel.innerHTML = `
       <div class="deedz-kicker">DEEDZ ENGINE ${this.engine.config.engine.version}</div>
       <h1 class="deedz-title">DEEDZ<br>THE GOOSE</h1>
-      <p class="deedz-subtitle">A living shared-world adventure powered by Deedz Engine v1.6.1. Charged crumb throws, crouch-walking, adaptive Echo music, and automatic map recovery keep every layer flowing.</p>
+      <p class="deedz-subtitle">Choose a balanced goose class for its play style, then pick any plumage color you want. Class changes abilities; color is cosmetic.</p>
       <label class="deedz-field">Goose name<input data-name maxlength="24" autocomplete="nickname"></label>
-      <div class="deedz-section-title">Choose your goose</div>
+      <div class="deedz-section-title">Choose your goose class</div>
       <div class="deedz-character-grid" data-characters></div>
+      <div class="deedz-section-title">Choose plumage color</div>
+      <div class="deedz-character-grid" data-colors></div>
       <div class="deedz-settings" data-settings></div>
       <div class="deedz-actions" data-actions></div>
-      <p class="deedz-help">Press Pause during play to open Mission Control, view every control, and remap keyboard or controller buttons.</p>`;
+      <p class="deedz-help">Specialists always trade something away for their advantage. Classic Goose remains the neutral baseline. Press Pause during play to view and remap every keyboard or controller input.</p>`;
+
+    const savedClass = this.engine.save.get('profile.character', 'classic');
+    if (!gooseClasses.some((item) => item.id === savedClass)) this.engine.save.set('profile.character', 'classic');
+    const savedColor = this.engine.save.get('profile.color', 'snow');
+    if (!gooseColors.some((item) => item.id === savedColor)) this.engine.save.set('profile.color', 'snow');
 
     const nameInput = panel.querySelector('[data-name]');
     nameInput.value = this.engine.save.get('profile.name', 'Deedz');
@@ -37,17 +49,40 @@ export class MainMenuScene extends Scene {
 
     const characterGrid = panel.querySelector('[data-characters]');
     this.characterButtons = [];
-    for (const character of characters) {
+    for (const character of gooseClasses) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'deedz-character';
       button.dataset.character = character.id;
-      button.innerHTML = `<span class="deedz-character__swatch" style="--goose-color:#${character.color.toString(16).padStart(6, '0')}"></span><strong>${character.name}</strong><small>${character.description}</small>`;
-      button.addEventListener('click', () => { this.engine.save.set('profile.character', character.id); this.#refreshCharacterSelection(); });
+      const ratings = character.ratings ?? {};
+      button.innerHTML = `<span class="deedz-character__swatch" style="--goose-color:#${character.themeColor.toString(16).padStart(6, '0')}"></span><strong>${character.name}</strong><small>${character.ability} · ${character.tradeoff}<br>HP ${dots(ratings.health)} · SPD ${dots(ratings.speed)} · HONK ${dots(ratings.honk)} · THROW ${dots(ratings.throw)} · AIR ${dots(ratings.flight)}</small>`;
+      button.addEventListener('click', () => {
+        this.engine.save.set('profile.character', character.id);
+        this.#refreshCharacterSelection();
+        this.#saveProfile(nameInput.value);
+      });
       characterGrid.appendChild(button);
       this.characterButtons.push(button);
     }
     this.#refreshCharacterSelection();
+
+    const colorGrid = panel.querySelector('[data-colors]');
+    this.colorButtons = [];
+    for (const color of gooseColors) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'deedz-character';
+      button.dataset.color = color.id;
+      button.innerHTML = `<span class="deedz-character__swatch" style="--goose-color:#${color.color.toString(16).padStart(6, '0')}"></span><strong>${color.name}</strong><small>Cosmetic plumage</small>`;
+      button.addEventListener('click', () => {
+        this.engine.save.set('profile.color', color.id);
+        this.#refreshColorSelection();
+        this.#saveProfile(nameInput.value);
+      });
+      colorGrid.appendChild(button);
+      this.colorButtons.push(button);
+    }
+    this.#refreshColorSelection();
 
     const settings = panel.querySelector('[data-settings]');
     settings.append(
@@ -64,7 +99,13 @@ export class MainMenuScene extends Scene {
 
     const actions = panel.querySelector('[data-actions]');
     const play = new Button({ label: 'Enter the Living Goose World', variant: 'primary', onClick: () => { this.#saveProfile(nameInput.value); this.engine.scenes.change('world'); } });
-    const reset = new Button({ label: 'Reset Local Progress', variant: 'danger', onClick: () => { this.engine.save.reset(); nameInput.value = 'Deedz'; this.#refreshCharacterSelection(); this.engine.ui.toast('Local progress reset.', { type: 'warning' }); } });
+    const reset = new Button({ label: 'Reset Local Progress', variant: 'danger', onClick: () => {
+      this.engine.save.reset();
+      nameInput.value = 'Deedz';
+      this.#refreshCharacterSelection();
+      this.#refreshColorSelection();
+      this.engine.ui.toast('Local progress reset.', { type: 'warning' });
+    } });
     actions.append(play.element, reset.element);
     this.screen.element.appendChild(panel);
     this.engine.ui.register(this.screen);
@@ -76,12 +117,24 @@ export class MainMenuScene extends Scene {
   #saveProfile(name) {
     const clean = String(name || 'Deedz').trim().slice(0, 24) || 'Deedz';
     this.engine.save.set('profile.name', clean);
-    this.engine.network.setProfile({ name: clean, character: this.engine.save.get('profile.character', 'deedz') });
+    this.engine.network.setProfile({
+      name: clean,
+      character: networkCharacterId(
+        this.engine.save.get('profile.character', 'classic'),
+        this.engine.save.get('profile.color', 'snow'),
+      ),
+    });
   }
 
   #refreshCharacterSelection() {
-    const selected = this.engine.save.get('profile.character', 'deedz');
+    const selected = this.engine.save.get('profile.character', 'classic');
     for (const button of this.characterButtons ?? []) button.setAttribute('aria-pressed', String(button.dataset.character === selected));
+  }
+
+  #refreshColorSelection() {
+    const selected = this.engine.save.get('profile.color', 'snow');
+    setActiveGooseColor(selected);
+    for (const button of this.colorButtons ?? []) button.setAttribute('aria-pressed', String(button.dataset.color === selected));
   }
 
   #toggle(label, path, fallback, onChange = null) {
