@@ -9,8 +9,9 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check src/main.js && node --check src/online.js && node --check src/controls.js && node --check src/entities.js && node --check src/render.js && node --check src/levels.js",
-    "test": "npm run check"
+    "check": "node --check server.mjs && node --check src/main.js && node --check src/online.js && node --check src/controls.js && node --check src/entities.js && node --check src/render.js && node --check src/levels.js && node --check test/online.test.mjs",
+    "test": "npm run check",
+    "test:online": "node --test test/online.test.mjs"
   },
   "dependencies": {
     "pg": "^8.16.3",
