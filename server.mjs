@@ -15,6 +15,7 @@ const INSTANCE_ID = randomUUID();
 const RELEASE = process.env.SOURCE_REVISION || process.env.GIT_COMMIT || 'local';
 const MAX_BODY = 8 * 1024;
 const WS_OPEN = 1;
+const GOOSE_COLORS = new Set(['#dc2626', '#ec4899', '#eab308', '#2563eb', '#16a34a', '#7c3aed', '#f97316', '#f8fafc']);
 
 if (!DATABASE_URL) {
   console.error('[goose] DATABASE_URL is required. Attach a PostgreSQL database before starting Deedz the Goose Online.');
@@ -36,11 +37,29 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const wss = new WebSocketServer({ noServer: true });
+const peers = new Map();
+const wss = new WebSocketServer({ noServer: true, maxPayload: 4096 });
 wss.on('connection', (ws) => {
-  broadcastPresence();
+  const peer = {
+    id: randomUUID(),
+    profile: cleanProfile({}),
+    state: null,
+    lastStateAt: 0
+  };
+  peers.set(ws, peer);
+
+  sendWs(ws, { type: 'hello', playerId: peer.id, instanceId: INSTANCE_ID });
   sendSnapshot(ws).catch(() => {});
-  ws.on('close', () => broadcastPresence());
+  sendExistingPeers(ws);
+  broadcastPresence();
+
+  ws.on('message', (raw) => handleSocketMessage(ws, raw));
+  ws.on('close', () => {
+    const leaving = peers.get(ws);
+    peers.delete(ws);
+    if (leaving) broadcastPeer(ws, { type: 'peer-leave', playerId: leaving.id });
+    broadcastPresence();
+  });
   ws.on('error', () => {});
 });
 
@@ -115,7 +134,7 @@ async function route(req, res, requestId) {
       instanceId: INSTANCE_ID,
       release: RELEASE,
       startedAt: STARTED_AT,
-      onlinePlayers: wss.clients.size
+      onlinePlayers: peers.size
     });
   }
 
@@ -176,6 +195,105 @@ async function route(req, res, requestId) {
   return sendJson(res, 404, { ok: false, error: 'not_found', requestId });
 }
 
+function handleSocketMessage(ws, raw) {
+  const peer = peers.get(ws);
+  if (!peer) return;
+
+  let message;
+  try {
+    message = JSON.parse(raw.toString('utf8'));
+  } catch {
+    return;
+  }
+
+  if (!message || typeof message !== 'object') return;
+
+  if (message.type === 'join' || message.type === 'profile') {
+    peer.profile = cleanProfile(message.profile);
+    broadcastPeer(ws, {
+      type: 'peer-join',
+      playerId: peer.id,
+      profile: peer.profile,
+      state: peer.state
+    });
+    return;
+  }
+
+  if (message.type === 'player-state') {
+    const now = Date.now();
+    if (now - peer.lastStateAt < 30) return;
+    peer.lastStateAt = now;
+    peer.state = cleanPlayerState(message.state);
+    broadcastPeer(ws, {
+      type: 'peer-state',
+      playerId: peer.id,
+      profile: peer.profile,
+      state: peer.state
+    });
+    return;
+  }
+
+  if (message.type === 'player-action') {
+    const action = cleanAction(message.action);
+    if (!action) return;
+    broadcastPeer(ws, {
+      type: 'peer-action',
+      playerId: peer.id,
+      profile: peer.profile,
+      action
+    });
+  }
+}
+
+function sendExistingPeers(ws) {
+  for (const [otherWs, peer] of peers) {
+    if (otherWs === ws) continue;
+    sendWs(ws, {
+      type: 'peer-join',
+      playerId: peer.id,
+      profile: peer.profile,
+      state: peer.state
+    });
+  }
+}
+
+function cleanProfile(value) {
+  const profile = value && typeof value === 'object' ? value : {};
+  const color = GOOSE_COLORS.has(profile.color) ? profile.color : '#dc2626';
+  return {
+    name: cleanName(profile.name),
+    color,
+    accent: typeof profile.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(profile.accent) ? profile.accent : '#facc15'
+  };
+}
+
+function cleanPlayerState(value) {
+  const state = value && typeof value === 'object' ? value : {};
+  return {
+    x: clampNumber(state.x, -500, 20_000, 120),
+    y: clampNumber(state.y, -1000, 3000, 500),
+    vx: clampNumber(state.vx, -2000, 2000, 0),
+    vy: clampNumber(state.vy, -2500, 2500, 0),
+    facing: Number(state.facing) < 0 ? -1 : 1,
+    hp: clampInt(state.hp, 0, 20, 6),
+    score: clampInt(state.score, 0, 10_000_000, 0),
+    state: ['idle', 'run', 'jump'].includes(state.state) ? state.state : 'idle',
+    mode: ['start', 'play', 'paused'].includes(state.mode) ? state.mode : 'start'
+  };
+}
+
+function cleanAction(value) {
+  const action = value && typeof value === 'object' ? value : {};
+  if (!['honk', 'stick', 'crumb', 'dash', 'jump'].includes(action.type)) return null;
+  return {
+    type: action.type,
+    x: clampNumber(action.x, -500, 20_000, 0),
+    y: clampNumber(action.y, -1000, 3000, 0),
+    facing: Number(action.facing) < 0 ? -1 : 1,
+    at: Date.now()
+  };
+}
+
 async function snapshot() {
   const [globalResult, scoresResult] = await Promise.all([
     pool.query('SELECT honks, plays, completions, updated_at FROM goose_global WHERE id = 1'),
@@ -193,7 +311,7 @@ async function snapshot() {
       honks: Number(global.honks || 0),
       plays: Number(global.plays || 0),
       completions: Number(global.completions || 0),
-      onlinePlayers: wss.clients.size,
+      onlinePlayers: peers.size,
       updatedAt: global.updated_at || null
     },
     leaderboard: scoresResult.rows.map((row) => ({
@@ -229,11 +347,11 @@ async function serveStatic(pathname, res) {
 
 async function sendSnapshot(ws) {
   if (ws.readyState !== WS_OPEN) return;
-  ws.send(JSON.stringify({ type: 'snapshot', ...(await snapshot()) }));
+  sendWs(ws, { type: 'snapshot', ...(await snapshot()) });
 }
 
 function broadcastPresence() {
-  broadcast({ type: 'presence', onlinePlayers: wss.clients.size });
+  broadcast({ type: 'presence', onlinePlayers: peers.size });
 }
 
 function broadcast(value) {
@@ -241,6 +359,17 @@ function broadcast(value) {
   for (const client of wss.clients) {
     if (client.readyState === WS_OPEN) client.send(payload);
   }
+}
+
+function broadcastPeer(source, value) {
+  const payload = JSON.stringify(value);
+  for (const client of wss.clients) {
+    if (client !== source && client.readyState === WS_OPEN) client.send(payload);
+  }
+}
+
+function sendWs(ws, value) {
+  if (ws.readyState === WS_OPEN) ws.send(JSON.stringify(value));
 }
 
 function cleanName(value) {
@@ -253,6 +382,12 @@ function cleanName(value) {
 
 function clampInt(value, min, max, fallback) {
   const n = Number.parseInt(value, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function clampNumber(value, min, max, fallback) {
+  const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(min, Math.min(max, n));
 }
