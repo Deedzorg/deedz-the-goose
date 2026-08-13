@@ -65,31 +65,37 @@ test('two WebSocket players synchronize identity, movement, action and leave', a
   a.ws.send(JSON.stringify({ type: 'join', profile: { name: 'Alpha Goose', color: '#dc2626', accent: '#facc15' } }));
 
   const b = await connectPeer();
-  const existingA = await waitForMessage(b.ws, (message) => message.type === 'peer-join' && message.playerId === a.playerId);
+  const existingAPromise = waitForMessage(b.ws, (message) => message.type === 'peer-join' && message.playerId === a.playerId);
+  a.ws.send(JSON.stringify({ type: 'profile', profile: { name: 'Alpha Goose', color: '#dc2626', accent: '#facc15' } }));
+  const existingA = await existingAPromise;
   assert.equal(existingA.profile.name, 'Alpha Goose');
 
+  const joinedBPromise = waitForMessage(a.ws, (message) => message.type === 'peer-join' && message.playerId === b.playerId);
   b.ws.send(JSON.stringify({ type: 'join', profile: { name: 'Bravo Goose', color: '#2563eb', accent: '#67e8f9' } }));
-  const joinedB = await waitForMessage(a.ws, (message) => message.type === 'peer-join' && message.playerId === b.playerId);
+  const joinedB = await joinedBPromise;
   assert.equal(joinedB.profile.name, 'Bravo Goose');
 
+  const movedPromise = waitForMessage(b.ws, (message) => message.type === 'peer-state' && message.playerId === a.playerId);
   a.ws.send(JSON.stringify({
     type: 'player-state',
     state: { x: 777, y: 444, vx: 50, vy: -10, facing: 1, hp: 6, score: 120, state: 'run', mode: 'play' }
   }));
-  const moved = await waitForMessage(b.ws, (message) => message.type === 'peer-state' && message.playerId === a.playerId);
+  const moved = await movedPromise;
   assert.equal(moved.state.x, 777);
   assert.equal(moved.state.y, 444);
   assert.equal(moved.state.mode, 'play');
 
+  const actionPromise = waitForMessage(b.ws, (message) => message.type === 'peer-action' && message.playerId === a.playerId);
   a.ws.send(JSON.stringify({
     type: 'player-action',
     action: { type: 'honk', x: 777, y: 444, facing: 1 }
   }));
-  const action = await waitForMessage(b.ws, (message) => message.type === 'peer-action' && message.playerId === a.playerId);
+  const action = await actionPromise;
   assert.equal(action.action.type, 'honk');
 
+  const leftPromise = waitForMessage(b.ws, (message) => message.type === 'peer-leave' && message.playerId === a.playerId);
   a.ws.close();
-  const left = await waitForMessage(b.ws, (message) => message.type === 'peer-leave' && message.playerId === a.playerId);
+  const left = await leftPromise;
   assert.equal(left.playerId, a.playerId);
   b.ws.close();
 });
