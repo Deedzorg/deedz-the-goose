@@ -1,6 +1,7 @@
 import './styles.css';
 import './polish.css';
 import './progression.css';
+import './ux-polish.css';
 import { DeedzEngine } from './engine/DeedzEngine.js';
 import { GooseGame } from './games/deedz-the-goose/GooseGame.js';
 import { BossGuidanceSystem } from './games/deedz-the-goose/systems/BossGuidanceSystem.js';
