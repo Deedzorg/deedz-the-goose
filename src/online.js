@@ -29,14 +29,18 @@ export const gooseOnline = {
 
   async finishRun(score, completed) {
     if (!state.runStarted) return;
+    const finalScore = Math.max(0, Math.floor(Number(score) || 0));
+    const finalCompleted = completed === true;
+    const finalRunHonks = state.runHonks;
+    const finalPlayerName = playerName();
     state.runStarted = false;
     await flushHonks().catch(() => {});
     try {
       await post('/api/score', {
-        playerName: playerName(),
-        score: Math.max(0, Math.floor(Number(score) || 0)),
-        completed: completed === true,
-        runHonks: state.runHonks
+        playerName: finalPlayerName,
+        score: finalScore,
+        completed: finalCompleted,
+        runHonks: finalRunHonks
       });
     } catch (error) {
       setNetworkState(`Score could not be saved: ${error.message}`);
