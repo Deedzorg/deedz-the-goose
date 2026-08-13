@@ -3,14 +3,22 @@ import { Scene } from '../../../engine/scenes/Scene.js';
 import { Screen } from '../../../engine/ui/Screen.js';
 import { Button } from '../../../engine/ui/Button.js';
 import { gooseClasses, gooseColors, networkCharacterId, setActiveGooseColor } from '../data/characters.js';
+import { menuDirection, menuSelectPressed, menuStartPressed } from '../data/menuNavigation.js';
 
-function dots(value = 3) {
+function pips(value = 3) {
   const count = Math.max(1, Math.min(5, Number(value) || 1));
   return `${'●'.repeat(count)}${'○'.repeat(5 - count)}`;
 }
 
+function isVisible(element) {
+  return Boolean(element && !element.disabled && !element.hidden && element.getClientRects?.().length);
+}
+
 export class MainMenuScene extends Scene {
-  constructor() { super('main-menu'); }
+  constructor() {
+    super('main-menu');
+    this.unsubscribers = [];
+  }
 
   async enter(data) {
     await super.enter(data);
@@ -24,65 +32,81 @@ export class MainMenuScene extends Scene {
 
     this.screen = new Screen({ id: 'main-menu-ui', label: 'Deedz The Goose main menu' });
     const panel = document.createElement('section');
-    panel.className = 'deedz-panel deedz-panel--wide';
+    panel.className = 'deedz-panel deedz-panel--wide deedz-launch-panel';
     panel.innerHTML = `
-      <div class="deedz-kicker">DEEDZ ENGINE ${this.engine.config.engine.version}</div>
-      <h1 class="deedz-title">DEEDZ<br>THE GOOSE</h1>
-      <p class="deedz-subtitle">Choose a balanced goose class for its play style, then pick any plumage color you want. Class changes abilities; color is cosmetic.</p>
-      <label class="deedz-field">Goose name<input data-name maxlength="24" autocomplete="nickname"></label>
-      <div class="deedz-section-title">Choose your goose class</div>
-      <div class="deedz-character-grid" data-characters></div>
-      <div class="deedz-section-title">Choose plumage color</div>
-      <div class="deedz-character-grid" data-colors></div>
-      <div class="deedz-settings" data-settings></div>
-      <div class="deedz-actions" data-actions></div>
-      <p class="deedz-help">Specialists always trade something away for their advantage. Classic Goose remains the neutral baseline. Press Pause during play to view and remap every keyboard or controller input.</p>`;
+      <div class="deedz-launch-heading">
+        <div>
+          <div class="deedz-kicker">DEEDZ ENGINE ${this.engine.config.engine.version}</div>
+          <h1 class="deedz-title">DEEDZ<br>THE GOOSE</h1>
+        </div>
+        <div class="deedz-controller-pill" data-controller-status>Keyboard ready · connect a controller anytime</div>
+      </div>
+      <p class="deedz-subtitle">Pick a play style, choose your goose color, and enter the living shared world.</p>
+      <p class="deedz-menu-hint">Controller: D-pad / left stick moves · A selects · Menu starts</p>
+
+      <label class="deedz-field deedz-name-field">Goose name<input data-name maxlength="24" autocomplete="nickname"></label>
+
+      <div class="deedz-section-title">1 · Play Style</div>
+      <div class="deedz-loadout-grid">
+        <div class="deedz-class-list" data-classes></div>
+        <aside class="deedz-class-detail" data-class-detail aria-live="polite"></aside>
+      </div>
+
+      <div class="deedz-section-title">2 · Goose Color <span class="deedz-section-note">Cosmetic only — no stat changes</span></div>
+      <div class="deedz-color-grid" data-colors></div>
+
+      <div class="deedz-selection-summary" data-selection-summary></div>
+      <div class="deedz-settings deedz-launch-settings" data-settings></div>
+      <div class="deedz-progress-line" data-progress></div>
+      <div class="deedz-actions deedz-launch-actions" data-actions></div>`;
 
     const savedClass = this.engine.save.get('profile.character', 'classic');
     if (!gooseClasses.some((item) => item.id === savedClass)) this.engine.save.set('profile.character', 'classic');
     const savedColor = this.engine.save.get('profile.color', 'snow');
     if (!gooseColors.some((item) => item.id === savedColor)) this.engine.save.set('profile.color', 'snow');
+    setActiveGooseColor(this.engine.save.get('profile.color', 'snow'));
 
     const nameInput = panel.querySelector('[data-name]');
     nameInput.value = this.engine.save.get('profile.name', 'Deedz');
     nameInput.addEventListener('change', () => this.#saveProfile(nameInput.value));
 
-    const characterGrid = panel.querySelector('[data-characters]');
+    const classList = panel.querySelector('[data-classes]');
     this.characterButtons = [];
     for (const character of gooseClasses) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'deedz-character';
+      button.className = 'deedz-class-card';
       button.dataset.character = character.id;
-      const ratings = character.ratings ?? {};
-      button.innerHTML = `<span class="deedz-character__swatch" style="--goose-color:#${character.themeColor.toString(16).padStart(6, '0')}"></span><strong>${character.name}</strong><small>${character.ability} · ${character.tradeoff}<br>HP ${dots(ratings.health)} · SPD ${dots(ratings.speed)} · HONK ${dots(ratings.honk)} · THROW ${dots(ratings.throw)} · AIR ${dots(ratings.flight)}</small>`;
+      button.innerHTML = `
+        <span class="deedz-class-card__mark" style="--class-color:#${character.themeColor.toString(16).padStart(6, '0')}"></span>
+        <span><strong>${character.name}</strong><small>${character.ability}</small></span>`;
       button.addEventListener('click', () => {
         this.engine.save.set('profile.character', character.id);
-        this.#refreshCharacterSelection();
+        this.#refreshSelection();
         this.#saveProfile(nameInput.value);
       });
-      characterGrid.appendChild(button);
+      classList.appendChild(button);
       this.characterButtons.push(button);
     }
-    this.#refreshCharacterSelection();
 
     const colorGrid = panel.querySelector('[data-colors]');
     this.colorButtons = [];
     for (const color of gooseColors) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'deedz-character';
+      button.className = 'deedz-color-choice';
       button.dataset.color = color.id;
-      button.innerHTML = `<span class="deedz-character__swatch" style="--goose-color:#${color.color.toString(16).padStart(6, '0')}"></span><strong>${color.name}</strong><small>Cosmetic plumage</small>`;
+      button.setAttribute('aria-label', `${color.name} goose color`);
+      button.innerHTML = `<span class="deedz-color-choice__swatch" style="--goose-color:#${color.color.toString(16).padStart(6, '0')}"></span><span>${color.name}</span>`;
       button.addEventListener('click', () => {
         this.engine.save.set('profile.color', color.id);
-        this.#refreshColorSelection();
+        setActiveGooseColor(color.id);
+        this.#refreshSelection();
         this.#saveProfile(nameInput.value);
       });
       colorGrid.appendChild(button);
       this.colorButtons.push(button);
     }
-    this.#refreshColorSelection();
 
     const settings = panel.querySelector('[data-settings]');
     settings.append(
@@ -92,49 +116,100 @@ export class MainMenuScene extends Scene {
     );
 
     const evolution = this.engine.save.get('progress.evolution', { level: 1, xp: 0, bossWins: 0 });
-    const progress = document.createElement('p');
-    progress.className = 'deedz-help';
-    progress.textContent = `Echo Layer ${evolution.level || 1} · ${evolution.xp || 0} XP · ${evolution.bossWins || 0} Breadstorm victories`;
-    panel.querySelector('[data-settings]').after(progress);
+    panel.querySelector('[data-progress]').textContent =
+      `Echo Layer ${evolution.level || 1} · ${evolution.xp || 0} XP · ${evolution.bossWins || 0} Breadstorm victories`;
 
     const actions = panel.querySelector('[data-actions]');
-    const play = new Button({ label: 'Enter the Living Goose World', variant: 'primary', onClick: () => { this.#saveProfile(nameInput.value); this.engine.scenes.change('world'); } });
-    const reset = new Button({ label: 'Reset Local Progress', variant: 'danger', onClick: () => {
-      this.engine.save.reset();
-      nameInput.value = 'Deedz';
-      this.#refreshCharacterSelection();
-      this.#refreshColorSelection();
-      this.engine.ui.toast('Local progress reset.', { type: 'warning' });
-    } });
-    actions.append(play.element, reset.element);
+    this.play = new Button({
+      label: 'Start Adventure',
+      variant: 'primary',
+      onClick: () => {
+        this.#saveProfile(nameInput.value);
+        if (!this.engine.scenes.transitioning) this.engine.scenes.change('world');
+      },
+    });
+    const reset = new Button({
+      label: 'Reset Local Progress',
+      variant: 'danger',
+      onClick: () => {
+        this.engine.save.reset();
+        nameInput.value = 'Deedz';
+        setActiveGooseColor('snow');
+        this.#refreshSelection();
+        this.engine.ui.toast('Local progress reset.', { type: 'warning' });
+      },
+    });
+    actions.append(this.play.element, reset.element);
+
+    this.panel = panel;
+    this.classDetail = panel.querySelector('[data-class-detail]');
+    this.selectionSummary = panel.querySelector('[data-selection-summary]');
+    this.controllerStatus = panel.querySelector('[data-controller-status]');
     this.screen.element.appendChild(panel);
     this.engine.ui.register(this.screen);
     this.engine.ui.show(this.screen.id);
-    play.focus();
+    this.#refreshSelection();
+    this.#refreshControllerStatus(this.engine.input.gamepad.info);
+    this.play.focus();
+
+    this.unsubscribers.push(
+      this.engine.events.on('gamepad:connected', (info) => this.#refreshControllerStatus(info)),
+      this.engine.events.on('gamepad:disconnected', () => this.#refreshControllerStatus(null)),
+    );
+
     if (this.engine.save.get('settings.music', true)) this.engine.audio.music.playToneBed({ root: 82 });
+  }
+
+  #selectedClass() {
+    const id = this.engine.save.get('profile.character', 'classic');
+    return gooseClasses.find((item) => item.id === id) ?? gooseClasses[0];
+  }
+
+  #selectedColor() {
+    const id = this.engine.save.get('profile.color', 'snow');
+    return gooseColors.find((item) => item.id === id) ?? gooseColors[0];
+  }
+
+  #refreshSelection() {
+    const character = this.#selectedClass();
+    const color = this.#selectedColor();
+    setActiveGooseColor(color.id);
+
+    for (const button of this.characterButtons ?? []) button.setAttribute('aria-pressed', String(button.dataset.character === character.id));
+    for (const button of this.colorButtons ?? []) button.setAttribute('aria-pressed', String(button.dataset.color === color.id));
+
+    const ratings = character.ratings ?? {};
+    if (this.classDetail) {
+      this.classDetail.innerHTML = `
+        <div class="deedz-class-detail__header">
+          <span class="deedz-class-preview" style="--goose-color:#${color.color.toString(16).padStart(6, '0')};--goose-accent:#${color.accent.toString(16).padStart(6, '0')}"></span>
+          <div><strong>${character.name}</strong><span>${character.ability}</span></div>
+        </div>
+        <p>${character.description}</p>
+        <div class="deedz-tradeoff"><strong>Tradeoff:</strong> ${character.tradeoff}</div>
+        <div class="deedz-stat-list">
+          ${this.#stat('Health', ratings.health)}
+          ${this.#stat('Speed', ratings.speed)}
+          ${this.#stat('Honk', ratings.honk)}
+          ${this.#stat('Throw', ratings.throw)}
+          ${this.#stat('Air', ratings.flight)}
+        </div>`;
+    }
+    if (this.selectionSummary) {
+      this.selectionSummary.innerHTML = `<span>Ready:</span><strong>${character.name}</strong><span>·</span><strong>${color.name}</strong><span>color</span>`;
+    }
+  }
+
+  #stat(label, value) {
+    return `<div class="deedz-stat"><span>${label}</span><strong aria-label="${value} of 5">${pips(value)}</strong></div>`;
   }
 
   #saveProfile(name) {
     const clean = String(name || 'Deedz').trim().slice(0, 24) || 'Deedz';
+    const classId = this.engine.save.get('profile.character', 'classic');
+    const colorId = this.engine.save.get('profile.color', 'snow');
     this.engine.save.set('profile.name', clean);
-    this.engine.network.setProfile({
-      name: clean,
-      character: networkCharacterId(
-        this.engine.save.get('profile.character', 'classic'),
-        this.engine.save.get('profile.color', 'snow'),
-      ),
-    });
-  }
-
-  #refreshCharacterSelection() {
-    const selected = this.engine.save.get('profile.character', 'classic');
-    for (const button of this.characterButtons ?? []) button.setAttribute('aria-pressed', String(button.dataset.character === selected));
-  }
-
-  #refreshColorSelection() {
-    const selected = this.engine.save.get('profile.color', 'snow');
-    setActiveGooseColor(selected);
-    for (const button of this.colorButtons ?? []) button.setAttribute('aria-pressed', String(button.dataset.color === selected));
+    this.engine.network.setProfile({ name: clean, character: networkCharacterId(classId, colorId) });
   }
 
   #toggle(label, path, fallback, onChange = null) {
@@ -145,10 +220,68 @@ export class MainMenuScene extends Scene {
     input.checked = this.engine.save.get(path, fallback);
     const text = document.createElement('span');
     text.textContent = label;
-    input.addEventListener('change', () => { this.engine.save.set(path, input.checked); onChange?.(input.checked); });
+    input.addEventListener('change', () => {
+      this.engine.save.set(path, input.checked);
+      onChange?.(input.checked);
+    });
     wrapper.append(input, text);
     return wrapper;
   }
 
-  async exit() { this.engine.ui.remove(this.screen?.id); await super.exit(); }
+  #focusables() {
+    return [...(this.panel?.querySelectorAll('button:not(:disabled), input:not(:disabled)') ?? [])].filter(isVisible);
+  }
+
+  #moveFocus(direction) {
+    const items = this.#focusables();
+    if (!items.length) return;
+    const current = document.activeElement;
+    const index = items.indexOf(current);
+    const start = index >= 0 ? index : 0;
+    items[(start + direction + items.length) % items.length]?.focus();
+  }
+
+  #activateFocused() {
+    const active = document.activeElement;
+    if (!active || !this.panel?.contains(active)) return;
+    if (active.tagName === 'BUTTON') active.click();
+    else if (active.tagName === 'INPUT' && ['checkbox', 'radio'].includes(active.type)) active.click();
+  }
+
+  #refreshControllerStatus(info) {
+    if (!this.controllerStatus) return;
+    if (!info?.id) {
+      this.controllerStatus.textContent = 'Keyboard ready · connect a controller anytime';
+      this.controllerStatus.classList.remove('is-connected');
+      return;
+    }
+    const short = String(info.id).replace(/\s+\(.*?\)\s*/g, ' ').trim().slice(0, 52);
+    this.controllerStatus.textContent = `Controller connected · ${short}`;
+    this.controllerStatus.classList.add('is-connected');
+  }
+
+  update() {
+    const input = this.engine.input;
+    if (menuStartPressed(input)) {
+      this.play?.element.click();
+      return;
+    }
+    if (menuSelectPressed(input)) {
+      this.#activateFocused();
+      return;
+    }
+    const direction = menuDirection(input);
+    if (direction === 'left' || direction === 'up') {
+      this.#moveFocus(-1);
+      return;
+    }
+    if (direction === 'right' || direction === 'down') this.#moveFocus(1);
+  }
+
+  async exit() {
+    for (const off of this.unsubscribers) off();
+    this.unsubscribers = [];
+    this.engine.ui.remove(this.screen?.id);
+    await super.exit();
+  }
 }
