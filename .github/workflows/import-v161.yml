@@ -1,0 +1,55 @@
+name: Restore canonical Deedz Engine v1.6.1
+
+on:
+  push:
+    branches: [infrastry-v1.6.1]
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    if: contains(github.event.head_commit.message, 'Trigger canonical v1.6.1 import')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: deedz
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d deedz"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/deedz
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reconstruct verified source archive
+        run: |
+          cat _import/chunk-*.b64 > /tmp/deedz-v161-source.b64
+          base64 --decode /tmp/deedz-v161-source.b64 > /tmp/deedz-v161-source.tar.gz
+          echo "9e5ced21eacc4d35bc116951ae6e75e260b216885e164dd910d5bebdab008211  /tmp/deedz-v161-source.tar.gz" | sha256sum --check --strict
+      - name: Restore canonical source
+        run: |
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          tar -xzf /tmp/deedz-v161-source.tar.gz -C .
+      - name: Install dependencies and generate lockfile
+        run: npm install --no-audit --no-fund
+      - name: Validate original Deedz Engine
+        run: npm run validate
+      - name: Validate Infrastry PostgreSQL and multiplayer integration
+        run: npm run test:cloud
+      - name: Commit restored source
+        run: |
+          git config user.name "Deedz Engine Restore"
+          git config user.email "37595805+Deedzorg@users.noreply.github.com"
+          git add -A
+          git commit -m "Restore canonical Deedz Engine v1.6.1 for Infrastry"
+          git push origin HEAD:infrastry-v1.6.1
