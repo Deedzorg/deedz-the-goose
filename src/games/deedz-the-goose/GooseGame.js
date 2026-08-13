@@ -8,6 +8,7 @@ import { PauseScene } from './scenes/PauseScene.js';
 import { ResultsScene } from './scenes/ResultsScene.js';
 import { cloneDefaultInputBindings } from '../../engine/input/InputMap.js';
 import { GooseClassSystem } from './systems/GooseClassSystem.js';
+import { ProgressionDirectorSystem } from './systems/ProgressionDirectorSystem.js';
 import { networkCharacterId } from './data/characters.js';
 
 export class GooseGame extends GameApp {
@@ -34,6 +35,7 @@ export class GooseGame extends GameApp {
   }
   async initialize(engine) {
     this.gooseClasses = new GooseClassSystem(engine);
+    this.progressionDirector = new ProgressionDirectorSystem(engine);
     engine.events.on('network:open', () => engine.ui.toast('Connected to Goose Lobby.', { type: 'success' }));
     engine.events.on('network:close', () => engine.ui.toast('Offline mode active.', { type: 'warning' }));
     engine.events.on('save:error', () => engine.ui.toast('Local storage is unavailable. Progress will last for this session only.', { type: 'warning', duration: 5000 }));
@@ -43,5 +45,9 @@ export class GooseGame extends GameApp {
     const settings = engine.save.get('settings', {});
     engine.input.setBindings(settings.controls ?? cloneDefaultInputBindings());
     engine.audio.setVolumes({ master: settings.master ?? 0.75, music: settings.music === false ? 0 : (settings.musicVolume ?? 0.55), sfx: settings.sfx === false ? 0 : (settings.sfxVolume ?? 0.8) });
+  }
+  async shutdown() {
+    this.progressionDirector?.destroy();
+    this.gooseClasses?.destroy();
   }
 }
