@@ -1,6 +1,4 @@
-export const keys = new Set();
-addEventListener('keydown', e => keys.add(e.code));
-addEventListener('keyup', e => keys.delete(e.code));
+import { controls } from './controls.js';
 
 export const rectsOverlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
@@ -10,15 +8,13 @@ export class Player {
     this.x = 120; this.y = 500; this.vx = 0; this.vy = 0; this.w = 42; this.h = 88;
     this.facing = 1; this.grounded = false; this.jumps = 0; this.maxJumps = 2; this.hp = 6; this.score = 0;
     this.dash = 0; this.dashCd = 0; this.honkCd = 0; this.stickCd = 0; this.crumbCd = 0; this.inv = 0;
-    this.triple = false; this.ammo = 40; this.state = 'idle';
+    this.triple = false; this.ammo = 40; this.state = 'idle'; this.profile = null;
   }
   rect() { return { x: this.x - this.w / 2, y: this.y - this.h, w: this.w, h: this.h }; }
   stickRect() { return { x: this.x + (this.facing > 0 ? 12 : -96), y: this.y - 78, w: 84, h: 44 }; }
   update(dt, solids, audio) {
-    const left = keys.has('KeyA') || keys.has('ArrowLeft');
-    const right = keys.has('KeyD') || keys.has('ArrowRight');
-    const move = (right ? 1 : 0) - (left ? 1 : 0);
-    if (move) this.facing = Math.sign(move);
+    const move = controls.axisX();
+    if (Math.abs(move) > 0.08) this.facing = Math.sign(move);
     this.dashCd = Math.max(0, this.dashCd - dt); this.honkCd = Math.max(0, this.honkCd - dt);
     this.stickCd = Math.max(0, this.stickCd - dt); this.crumbCd = Math.max(0, this.crumbCd - dt); this.inv = Math.max(0, this.inv - dt);
 
