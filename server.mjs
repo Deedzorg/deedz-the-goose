@@ -14,6 +14,7 @@ const STARTED_AT = new Date().toISOString();
 const INSTANCE_ID = randomUUID();
 const RELEASE = process.env.SOURCE_REVISION || process.env.GIT_COMMIT || 'local';
 const MAX_BODY = 8 * 1024;
+const WS_OPEN = 1;
 
 if (!DATABASE_URL) {
   console.error('[goose] DATABASE_URL is required. Attach a PostgreSQL database before starting Deedz the Goose Online.');
@@ -30,7 +31,8 @@ const server = http.createServer(async (req, res) => {
     await route(req, res, requestId);
   } catch (error) {
     console.error(JSON.stringify({ event: 'request.error', requestId, path: req.url, message: error.message }));
-    sendJson(res, 500, { ok: false, error: 'internal_error', requestId });
+    if (!res.headersSent) sendJson(res, 500, { ok: false, error: 'internal_error', requestId });
+    else res.end();
   }
 });
 
@@ -146,19 +148,22 @@ async function route(req, res, requestId) {
     const runHonks = clampInt(body.runHonks, 0, 100_000, 0);
     const completed = body.completed === true;
 
-    await pool.query('BEGIN');
+    const client = await pool.connect();
     try {
-      await pool.query(
+      await client.query('BEGIN');
+      await client.query(
         `INSERT INTO goose_scores(player_name, score, completed, run_honks) VALUES($1,$2,$3,$4)`,
         [playerName, score, completed, runHonks]
       );
       if (completed) {
-        await pool.query(`UPDATE goose_global SET completions = completions + 1, updated_at = NOW() WHERE id = 1`);
+        await client.query(`UPDATE goose_global SET completions = completions + 1, updated_at = NOW() WHERE id = 1`);
       }
-      await pool.query('COMMIT');
+      await client.query('COMMIT');
     } catch (error) {
-      await pool.query('ROLLBACK');
+      await client.query('ROLLBACK').catch(() => {});
       throw error;
+    } finally {
+      client.release();
     }
 
     const state = await snapshot();
@@ -203,6 +208,9 @@ async function snapshot() {
 
 async function serveStatic(pathname, res) {
   const relative = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
+  const allowed = relative === 'index.html' || relative.startsWith('src/') || relative.startsWith('styles/');
+  if (!allowed || relative.includes('/.')) return sendText(res, 404, 'Not found');
+
   const target = resolve(ROOT, relative);
   if (target !== ROOT && !target.startsWith(ROOT + sep)) return sendText(res, 403, 'Forbidden');
 
@@ -220,7 +228,7 @@ async function serveStatic(pathname, res) {
 }
 
 async function sendSnapshot(ws) {
-  if (ws.readyState !== ws.OPEN) return;
+  if (ws.readyState !== WS_OPEN) return;
   ws.send(JSON.stringify({ type: 'snapshot', ...(await snapshot()) }));
 }
 
@@ -231,7 +239,7 @@ function broadcastPresence() {
 function broadcast(value) {
   const payload = JSON.stringify(value);
   for (const client of wss.clients) {
-    if (client.readyState === client.OPEN) client.send(payload);
+    if (client.readyState === WS_OPEN) client.send(payload);
   }
 }
 
