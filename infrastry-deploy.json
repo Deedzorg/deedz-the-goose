@@ -1,6 +1,0 @@
-{
-  "deployment": "deedz-engine-v1.6.1",
-  "purpose": "Trigger Infrastry deployment of the tested full Deedz Engine build on the existing application branch.",
-  "sourceCommit": "7598a5f0b82ddd8c995108737409a9b543c2f997",
-  "promotedAt": "2026-08-13T11:43:00Z"
-}

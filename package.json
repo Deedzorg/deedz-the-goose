@@ -2,29 +2,34 @@
   "name": "deedz-engine",
   "version": "1.6.1",
   "private": true,
-  "description": "Deedz Engine v1.6.1 — the evolving multiplayer world of Deedz The Goose, adapted for managed cloud deployment.",
+  "description": "Reusable browser game engine powering the evolving multiplayer world of Deedz The Goose.",
   "type": "module",
-  "engines": { "node": ">=20.19.0" },
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "concurrently -k -n client,server -c auto \"vite --host 0.0.0.0\" \"node --watch server/index.js\"",
     "dev:client": "vite --host 0.0.0.0",
     "dev:server": "node --watch server/index.js",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "prestart": "npm run build",
     "start": "node server/index.js --production",
     "check": "node scripts/check-imports.js",
     "test": "node --test",
-    "validate": "npm run check && npm test && npm run build",
-    "test:cloud": "node --test tests/infrastry-cloud.test.js"
+    "validate": "npm run check && npm test && npm run build"
   },
   "dependencies": {
     "express": "^5.2.1",
     "pixi.js": "^8.19.0",
-    "ws": "^8.21.0",
-    "pg": "^8.16.3"
+    "ws": "^8.21.0"
   },
-  "devDependencies": { "concurrently": "^10.0.3", "vite": "^8.1.2" },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "vite": "^8.1.2"
+  },
   "main": "./src/engine/index.js",
-  "exports": { ".": "./src/engine/index.js", "./server": "./server/index.js" }
+  "exports": {
+    ".": "./src/engine/index.js",
+    "./server": "./server/index.js"
+  }
 }

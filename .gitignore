@@ -1,6 +1,9 @@
 node_modules/
 dist/
-.DS_Store
-Thumbs.db
 .env
-.vscode/
+.env.*
+!.env.example
+server/data/*.json
+!server/data/.gitkeep
+*.log
+.DS_Store

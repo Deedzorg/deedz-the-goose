@@ -1,0 +1,15 @@
+export const achievements = Object.freeze([
+  { id: 'first-crumb', name: 'First Crumb', description: 'Collect your first crumb.' },
+  { id: 'crumb-hunter', name: 'Crumb Hunter', description: 'Collect 10 crumbs.' },
+  { id: 'crumb-slinger', name: 'Crumb Slinger', description: 'Throw a crumb with conviction.' },
+  { id: 'echo-collector', name: 'Shiny Things', description: 'Collect 25 treasures of any kind.' },
+  { id: 'cache-cracker', name: 'Echo Cache Cracker', description: 'Discover a rare Echo Cache.' },
+  { id: 'honk-first', name: 'Public Disturbance', description: 'Honk with conviction.' },
+  { id: 'fox-felled', name: 'Bread Winner', description: 'Defeat a bread fox.' },
+  { id: 'fox-captain', name: 'Crust Buster', description: 'Defeat Captain Crust.' },
+  { id: 'triple-flap', name: 'Almost Flying', description: 'Use the third jump and take flight.' },
+  { id: 'wing-bump', name: 'Flock Together', description: 'Wing-bump another player.' },
+  { id: 'echo-master', name: 'Honk Harmonics', description: 'Awaken all three Echo Crystals.' },
+  { id: 'world-evolved', name: 'The Adventure Continues', description: 'Advance Goose Green into a new Echo Layer.' },
+  { id: 'breadstorm-breaker', name: 'Honk Against the Storm', description: 'Defeat Baron Breadstorm with the flock.' },
+]);

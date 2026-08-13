@@ -1,32 +1,17 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Deedz the Goose: Honk Commander</title>
-  <link rel="stylesheet" href="styles/main.css" />
-</head>
-<body>
-  <main class="game-shell">
-    <section class="topbar">
-      <div>
-        <h1>Deedz the Goose</h1>
-        <p>Honk Commander — browser platformer prototype</p>
-      </div>
-      <div class="controls-hint">
-        Move: A/D · Jump: Space · Honk: H · Stick: J · Dash: Shift · Crumbs: K
-      </div>
-    </section>
-
-    <canvas id="game" width="1280" height="720"></canvas>
-
-    <section class="bottombar">
-      <button id="startBtn">Start / Restart</button>
-      <button id="muteBtn">Music: On</button>
-      <span id="status">Ready.</span>
-    </section>
-  </main>
-
-  <script type="module" src="src/main.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#07111f" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="description" content="Deedz Engine v1.6.1 — safe mission transitions, precise Flock Sense, mobile controls, evolving music, and shared-world browser game technology from Deedz Corp." />
+    <title>Deedz Engine v1.6.1 · Safe Return</title>
+  </head>
+  <body>
+    <div id="game-root" aria-label="Deedz Engine game canvas"></div>
+    <div id="ui-root"></div>
+    <noscript>Deedz Engine requires JavaScript.</noscript>
+    <script type="module" src="/src/main.js"></script>
+  </body>
 </html>
