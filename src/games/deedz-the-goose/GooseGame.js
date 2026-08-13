@@ -7,13 +7,15 @@ import { WorldScene } from './scenes/WorldScene.js';
 import { PauseScene } from './scenes/PauseScene.js';
 import { ResultsScene } from './scenes/ResultsScene.js';
 import { cloneDefaultInputBindings } from '../../engine/input/InputMap.js';
+import { GooseClassSystem } from './systems/GooseClassSystem.js';
+import { networkCharacterId } from './data/characters.js';
 
 export class GooseGame extends GameApp {
   createConfig() { return GooseConfig; }
   assetManifest() { return new AssetManifest().addBundle('goose-core', []); }
   defaultSaveData() {
     return {
-      profile: { name: 'Deedz', character: 'deedz', cosmetics: ['cap', 'chain'] },
+      profile: { name: 'Deedz', character: 'classic', color: 'snow', cosmetics: ['cap', 'chain'] },
       settings: { master: 0.75, music: true, musicVolume: 0.55, adaptiveMusic: true, touchControls: 'auto', sfx: true, sfxVolume: 0.8, voice: false, screenShake: true, controls: cloneDefaultInputBindings() },
       progress: { chapter: 1, crumbs: 0, crumbAmmo: 12, enemies: 0, collectibles: 0, bestTime: null, checkpoint: null, evolution: { level: 1, xp: 0, cycle: 0, seed: 1337, bossWins: 0 } },
       achievements: [],
@@ -21,7 +23,7 @@ export class GooseGame extends GameApp {
   }
   networkProfile(engine) {
     const profile = engine.save.get('profile', {});
-    return { name: String(profile.name || 'Anonymous Goose').slice(0, 24), character: profile.character || 'deedz' };
+    return { name: String(profile.name || 'Anonymous Goose').slice(0, 24), character: networkCharacterId(profile.character || 'classic', profile.color || 'snow') };
   }
   async registerScenes(engine) {
     engine.scenes.register('boot', () => new BootScene());
@@ -31,6 +33,7 @@ export class GooseGame extends GameApp {
     engine.scenes.register('results', () => new ResultsScene());
   }
   async initialize(engine) {
+    this.gooseClasses = new GooseClassSystem(engine);
     engine.events.on('network:open', () => engine.ui.toast('Connected to Goose Lobby.', { type: 'success' }));
     engine.events.on('network:close', () => engine.ui.toast('Offline mode active.', { type: 'warning' }));
     engine.events.on('save:error', () => engine.ui.toast('Local storage is unavailable. Progress will last for this session only.', { type: 'warning', duration: 5000 }));
