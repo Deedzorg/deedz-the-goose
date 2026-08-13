@@ -17,6 +17,9 @@ function cleanState(state = {}) {
     grounded: Boolean(state.grounded),
     crouching: Boolean(state.crouching),
     evolutionLevel: Math.max(1, Math.min(999, Math.floor(number(state.evolutionLevel, 1)))),
+    score: Math.max(0, Math.min(999999999, Math.floor(number(state.score, 0)))),
+    bossWins: Math.max(0, Math.min(9999, Math.floor(number(state.bossWins, 0)))),
+    echoXp: Math.max(0, Math.min(9999999, Math.floor(number(state.echoXp, 0)))),
     updatedAt: Date.now(),
   };
 }
@@ -30,21 +33,10 @@ function cleanWorldEvent(payload = {}) {
   const allowed = new Set(['enemy-hit', 'enemy-defeated', 'crystal-activated', 'flock-energy', 'boss-hit']);
   if (!allowed.has(event)) throw new Error('Unsupported world event');
   if (event === 'crystal-activated') return { event, crystalId: cleanId(payload.crystalId) };
-  if (event === 'flock-energy') {
-    return {
-      event,
-      amount: Math.max(1, Math.min(30, Math.floor(Number(payload.amount) || 1))),
-      reason: String(payload.reason || 'Adventure').slice(0, 48),
-    };
-  }
+  if (event === 'flock-energy') return { event, amount: Math.max(1, Math.min(30, Math.floor(Number(payload.amount) || 1))), reason: String(payload.reason || 'Adventure').slice(0, 48) };
   if (event === 'boss-hit') {
     const hitType = ['attack', 'honk', 'dash', 'crumb'].includes(payload.hitType) ? payload.hitType : 'attack';
-    return {
-      event,
-      bossId: cleanId(payload.bossId || 'baron-breadstorm'),
-      damage: Math.max(1, Math.min(8, Number(payload.damage) || 1)),
-      hitType,
-    };
+    return { event, bossId: cleanId(payload.bossId || 'baron-breadstorm'), damage: Math.max(1, Math.min(8, Number(payload.damage) || 1)), hitType };
   }
   return {
     event,
@@ -56,14 +48,7 @@ function cleanWorldEvent(payload = {}) {
 }
 
 function createWorldState() {
-  return {
-    activatedCrystals: new Set(),
-    defeatedEnemies: new Set(),
-    flockEnergy: 0,
-    flockGoal: 180,
-    bossWins: 0,
-    boss: null,
-  };
+  return { activatedCrystals: new Set(), defeatedEnemies: new Set(), flockEnergy: 0, flockGoal: 180, bossWins: 0, boss: null };
 }
 
 function cloneBoss(boss) { return boss ? { ...boss } : null; }
@@ -86,12 +71,7 @@ export class RoomManager {
     this.rooms.set(normalizedRoomId, room);
     this.clientRoom.set(client.id, normalizedRoomId);
     if (!this.worldStates.has(normalizedRoomId)) this.worldStates.set(normalizedRoomId, createWorldState());
-    return {
-      roomId: normalizedRoomId,
-      member,
-      peers: [...room.values()].filter((peer) => peer.id !== client.id).map((peer) => this.publicMember(peer)),
-      worldState: this.getWorldState(normalizedRoomId),
-    };
+    return { roomId: normalizedRoomId, member, peers: [...room.values()].filter((peer) => peer.id !== client.id).map((peer) => this.publicMember(peer)), worldState: this.getWorldState(normalizedRoomId) };
   }
 
   leave(client) {
@@ -100,10 +80,7 @@ export class RoomManager {
     const room = this.rooms.get(roomId);
     room?.delete(client.id);
     this.clientRoom.delete(client.id);
-    if (room?.size === 0) {
-      this.rooms.delete(roomId);
-      this.worldStates.delete(roomId);
-    }
+    if (room?.size === 0) { this.rooms.delete(roomId); this.worldStates.delete(roomId); }
     return roomId;
   }
 
@@ -130,27 +107,10 @@ export class RoomManager {
         const players = Math.max(1, room?.size ?? 1);
         const maxHp = 34 + cycle * 10 + players * 6;
         const maxShield = 4 + cycle + players * 2;
-        state.boss = {
-          id: `baron-breadstorm-${cycle}`,
-          active: true,
-          defeated: false,
-          hp: maxHp,
-          maxHp,
-          shield: maxShield,
-          maxShield,
-          phase: 1,
-          cycle,
-          spawnedAt: Date.now(),
-        };
+        state.boss = { id: `baron-breadstorm-${cycle}`, active: true, defeated: false, hp: maxHp, maxHp, shield: maxShield, maxShield, phase: 1, cycle, spawnedAt: Date.now() };
       }
       this.worldStates.set(roomId, state);
-      return {
-        ...event,
-        flockEnergy: state.flockEnergy,
-        flockGoal: state.flockGoal,
-        bossWins: state.bossWins,
-        boss: cloneBoss(state.boss),
-      };
+      return { ...event, flockEnergy: state.flockEnergy, flockGoal: state.flockGoal, bossWins: state.bossWins, boss: cloneBoss(state.boss) };
     }
 
     if (event.event === 'boss-hit') {
@@ -184,16 +144,7 @@ export class RoomManager {
         }
       }
       this.worldStates.set(roomId, state);
-      return {
-        ...event,
-        attackerId: client.id,
-        damageApplied,
-        shieldDamage,
-        flockEnergy: state.flockEnergy,
-        flockGoal: state.flockGoal,
-        bossWins: state.bossWins,
-        boss: cloneBoss(state.boss),
-      };
+      return { ...event, attackerId: client.id, damageApplied, shieldDamage, flockEnergy: state.flockEnergy, flockGoal: state.flockGoal, bossWins: state.bossWins, boss: cloneBoss(state.boss) };
     }
 
     this.worldStates.set(roomId, state);
@@ -202,14 +153,7 @@ export class RoomManager {
 
   getWorldState(roomId) {
     const state = this.worldStates.get(roomId) ?? createWorldState();
-    return {
-      activatedCrystals: [...state.activatedCrystals],
-      defeatedEnemies: [...state.defeatedEnemies],
-      flockEnergy: state.flockEnergy,
-      flockGoal: state.flockGoal,
-      bossWins: state.bossWins,
-      boss: cloneBoss(state.boss),
-    };
+    return { activatedCrystals: [...state.activatedCrystals], defeatedEnemies: [...state.defeatedEnemies], flockEnergy: state.flockEnergy, flockGoal: state.flockGoal, bossWins: state.bossWins, boss: cloneBoss(state.boss) };
   }
 
   getMember(clientId) {
@@ -224,10 +168,7 @@ export class RoomManager {
     const payload = JSON.stringify({ ...message, sentAt: Date.now() });
     let sent = 0;
     for (const member of room.values()) {
-      if ((includeSender || member.id !== client.id) && member.socket.readyState === 1) {
-        member.socket.send(payload);
-        sent += 1;
-      }
+      if ((includeSender || member.id !== client.id) && member.socket.readyState === 1) { member.socket.send(payload); sent += 1; }
     }
     return sent;
   }
