@@ -1,0 +1,22 @@
+name: Deedz Game CI
+
+on:
+  push:
+    branches: [infrastry-online]
+  pull_request:
+    branches: [infrastry-online]
+
+jobs:
+  validate:
+    strategy:
+      matrix:
+        node: [20, 22]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run validate
