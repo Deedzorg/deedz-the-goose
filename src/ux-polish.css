@@ -1,0 +1,9 @@
+/* pause polish */
+.deedz-tabs { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.deedz-tab-panels { border:1px solid rgba(255,255,255,.09); border-radius:18px; padding:16px; background:rgba(255,255,255,.025); }
+.deedz-settings--stacked { gap:10px; }
+.deedz-settings--stacked .deedz-toggle { min-height:60px; border-radius:14px; padding:12px 14px; }
+.deedz-settings--stacked .deedz-toggle input { width:22px; height:22px; margin-left:auto; order:2; }
+.deedz-settings--stacked .deedz-toggle span { order:1; font-weight:800; }
+.deedz-settings--stacked .deedz-toggle:focus-within,.deedz-control-row:focus-within,.deedz-slider:focus-within { border-color:var(--accent-2); box-shadow:0 0 0 3px rgba(85,214,255,.12); }
+@media (max-width:760px) { .deedz-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); } .deedz-tab-panels { padding:12px; } }
