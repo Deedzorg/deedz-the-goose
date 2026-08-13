@@ -45,6 +45,6 @@ test('adaptive music evolves by Echo Layer and intensifies for bosses', () => {
   assert.ok(boss.volume > layerFive.volume);
 });
 
-test('pause menu keeps mission, controls, and settings in separate tabs', () => {
-  assert.deepEqual(PAUSE_TABS.map((tab) => tab.id), ['mission', 'controls', 'settings']);
+test('pause menu keeps mission, controls, settings, and records in separate tabs', () => {
+  assert.deepEqual(PAUSE_TABS.map((tab) => tab.id), ['mission', 'controls', 'settings', 'records']);
 });
