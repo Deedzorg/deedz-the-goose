@@ -34,7 +34,7 @@ jobs:
 
       - name: Reconstruct and inspect source bundle
         run: |
-          cat _import/final-*.b64 > /tmp/deedz-v161-source.b64
+          cat _import/part-*.b64 _import/final-*.b64 > /tmp/deedz-v161-source.b64
           base64 --decode /tmp/deedz-v161-source.b64 > /tmp/deedz-v161-source.zip
           sha256sum /tmp/deedz-v161-source.zip
           unzip -tq /tmp/deedz-v161-source.zip
