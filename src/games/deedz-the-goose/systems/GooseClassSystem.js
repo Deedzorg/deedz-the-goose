@@ -46,6 +46,13 @@ export class GooseClassSystem {
     payload.strength = Math.round((Number(payload.strength) || 0) * (stats.throwStrength ?? 1));
     payload.lift = Math.round((Number(payload.lift) || 0) * (stats.throwLift ?? 1));
     payload.duration = (Number(payload.duration) || 0) * (stats.throwDuration ?? 1);
+    payload.projectileStyle = payload.player?.character?.projectileStyle ?? 'crumb';
+    if (payload.projectileStyle === 'ember-bolt') {
+      const charge = Math.max(0, Math.min(1, Number(payload.charge) || 0));
+      payload.strength = Math.max(900, Math.round(payload.strength * 1.04));
+      payload.lift = 16 + Math.round(charge * 10);
+      payload.duration = 1.05 + charge * 0.35;
+    }
   }
 
   #modifyDash(player) {

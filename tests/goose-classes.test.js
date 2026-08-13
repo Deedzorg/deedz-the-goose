@@ -13,7 +13,7 @@ function direction(key, value) {
 }
 
 test('specialist goose classes have both a buff and a debuff', () => {
-  assert.equal(gooseClasses.length, 7);
+  assert.equal(gooseClasses.length, 8);
   assert.deepEqual(gooseClasses[0].ratings, { health: 3, speed: 3, honk: 3, throw: 3, flight: 3 });
   assert.equal(Object.values(gooseClasses[0].ratings).reduce((sum, value) => sum + value, 0), 15);
   for (const gooseClass of gooseClasses.slice(1)) {
@@ -29,7 +29,7 @@ test('specialist goose classes have both a buff and a debuff', () => {
   }
 });
 
-test('class and plumage are independent and network-safe', () => {
+test('class and goose color are independent and network-safe', () => {
   assert.equal(gooseColors.length, 8);
   setActiveGooseColor('violet');
   assert.equal(gooseClasses[0].color, gooseColors.find((color) => color.id === 'violet').color);
@@ -40,8 +40,7 @@ test('class and plumage are independent and network-safe', () => {
   assert.equal(remote.plumageId, 'rose');
 });
 
-
-test('class systems apply the advertised gameplay modifiers', async () => {
+test('class systems apply advertised modifiers including Ember Fire Feather', async () => {
   const { EventBus } = await import('../src/engine/events/EventBus.js');
   const { GooseClassSystem } = await import('../src/games/deedz-the-goose/systems/GooseClassSystem.js');
   const events = new EventBus();
@@ -68,6 +67,16 @@ test('class systems apply the advertised gameplay modifiers', async () => {
   assert.equal(throwPayload.strength, 1200);
   assert.equal(throwPayload.lift, 220);
   assert.equal(throwPayload.duration, 2.3);
+
+  const ember = gooseClasses.find((item) => item.id === 'firebrand');
+  assert.equal(ember.name, 'Ember Goose');
+  assert.equal(ember.projectileStyle, 'ember-bolt');
+  const fire = { player: { character: ember }, strength: 700, lift: 180, duration: 1.6, charge: 0.5 };
+  events.emit('goose:throw', fire);
+  assert.equal(fire.projectileStyle, 'ember-bolt');
+  assert.ok(fire.strength >= 900);
+  assert.ok(fire.lift <= 30, 'Fire Feather should fly nearly straight');
+  assert.ok(fire.duration <= 1.4, 'Fire Feather trades lob duration for direct speed');
 
   const skywing = gooseClasses.find((item) => item.id === 'skywing');
   const flying = { character: skywing, flightTime: 0.48 };
