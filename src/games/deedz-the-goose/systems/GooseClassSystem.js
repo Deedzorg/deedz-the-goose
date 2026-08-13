@@ -1,8 +1,7 @@
 const BASE = Object.freeze({ speed: 380, acceleration: 2500, airAcceleration: 1550, jumpSpeed: 720, hp: 6 });
 
 function selectedClass(engine) {
-  const id = engine.save.get('profile.character', 'classic');
-  return engine.game?.constructor?.name ? id : id;
+  return engine.save.get('profile.character', 'classic');
 }
 
 function statsFor(engine, player = null) {

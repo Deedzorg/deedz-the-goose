@@ -38,6 +38,11 @@ export class MainMenuScene extends Scene {
       <div class="deedz-actions" data-actions></div>
       <p class="deedz-help">Specialists always trade something away for their advantage. Classic Goose remains the neutral baseline. Press Pause during play to view and remap every keyboard or controller input.</p>`;
 
+    const savedClass = this.engine.save.get('profile.character', 'classic');
+    if (!gooseClasses.some((item) => item.id === savedClass)) this.engine.save.set('profile.character', 'classic');
+    const savedColor = this.engine.save.get('profile.color', 'snow');
+    if (!gooseColors.some((item) => item.id === savedColor)) this.engine.save.set('profile.color', 'snow');
+
     const nameInput = panel.querySelector('[data-name]');
     nameInput.value = this.engine.save.get('profile.name', 'Deedz');
     nameInput.addEventListener('change', () => this.#saveProfile(nameInput.value));
