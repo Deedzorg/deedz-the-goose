@@ -2,12 +2,17 @@ import { Scene } from '../../../engine/scenes/Scene.js';
 import { Screen } from '../../../engine/ui/Screen.js';
 import { Button } from '../../../engine/ui/Button.js';
 import { ControlsSettingsPanel } from '../ui/ControlsSettingsPanel.js';
+import { menuBackPressed, menuDirection, menuSelectPressed, menuStartPressed } from '../data/menuNavigation.js';
 
 export const PAUSE_TABS = Object.freeze([
   { id: 'mission', label: 'Mission' },
   { id: 'controls', label: 'Controls' },
   { id: 'settings', label: 'Settings' },
 ]);
+
+function isVisible(element) {
+  return Boolean(element && !element.disabled && !element.hidden && element.getClientRects?.().length);
+}
 
 export class PauseScene extends Scene {
   constructor() {
@@ -23,17 +28,18 @@ export class PauseScene extends Scene {
     panel.innerHTML = `
       <div class="deedz-kicker">MISSION CONTROL</div>
       <h1 class="deedz-title deedz-title--compact">PAUSED</h1>
+      <p class="deedz-menu-hint">Controller: D-pad / left stick moves · A selects · B goes back · Menu resumes</p>
       <div class="deedz-tabs" role="tablist" aria-label="Pause menu sections" data-tabs></div>
-      <div class="deedz-tab-panels">
-        <section class="deedz-tab-panel" role="tabpanel" data-tab-panel="mission">
-          <p class="deedz-subtitle">Rest your wings, restart from the beginning, or return to the main menu.</p>
-          <div class="deedz-pause-summary">
+      <div class="dedz-tab-panels">
+        <section class="dedz-tab-panel" role="tabpanel" data-tab-panel="mission">
+          <p class="dedz-subtitle">Rest your wings, restart from the beginning, or return to the main menu.</p>
+          <div class="dedz-pause-summary">
             <strong>Adventure continues when you resume.</strong>
-            <span>Controls and settings remain tucked into their own tabs until you need them.</span>
+            <span>Left / right changes tabs. Up / down moves through controls. A selects.</span>
           </div>
           <div class="deedz-actions deedz-actions--horizontal" data-actions></div>
         </section>
-        <section class="deedz-tab-panel" role="tabpanel" data-tab-panel="controls" hidden></section>
+        <section class="dedz-tab-panel" role="tabpanel" data-tab-panel="controls" hidden></section>
         <section class="deedz-tab-panel" role="tabpanel" data-tab-panel="settings" hidden></section>
       </div>`;
 
@@ -70,7 +76,6 @@ export class PauseScene extends Scene {
     this.resume.focus();
   }
 
-
   async #leavePause(sceneId, data = {}) {
     if (this.leaving || this.engine.scenes.transitioning) return;
     this.leaving = true;
@@ -96,9 +101,7 @@ export class PauseScene extends Scene {
       button.tabIndex = selected ? 0 : -1;
     }
     for (const content of panel.querySelectorAll('[data-tab-panel]')) content.hidden = content.dataset.tabPanel !== id;
-    const focusTarget = id === 'mission'
-      ? this.resume.element
-      : panel.querySelector(`[data-tab-panel="${id}"] button:not(:disabled), [data-tab-panel="${id}"] input:not(:disabled)`);
+    const focusTarget = id === 'mission' ? this.resume.element : this.#focusables(id)[0] ?? this.tabButtons.get(id);
     focusTarget?.focus();
   }
 
@@ -106,17 +109,90 @@ export class PauseScene extends Scene {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.code)) return;
     event.preventDefault();
     const index = PAUSE_TABS.findIndex((tab) => tab.id === currentId);
-    const nextIndex = event.code === 'Home' ? 0
-      : event.code === 'End' ? PAUSE_TABS.length - 1
-        : (index + (event.code === 'ArrowRight' ? 1 : -1) + PAUSE_TABS.length) % PAUSE_TABS.length;
+    const nextIndex = event.code === 'Home' ? 0 : event.code === 'End' ? PAUSE_TABS.length - 1 : (index + (event.code === 'ArrowRight' ? 1 : -1) + PAUSE_TABS.length) % PAUSE_TABS.length;
     const next = PAUSE_TABS[nextIndex];
     this.#selectTab(next.id, panel);
     this.tabButtons.get(next.id)?.focus();
   }
 
+  #focusables(tabId = this.activeTab) {
+    const panel = this.panel?.querySelector(`[data-tab-panel="${tabId}"]`);
+    if (!panel || panel.hidden) return [];
+    return [...panel.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled)')].filter(isVisible);
+  }
+
+  #moveFocus(direction) {
+    const items = this.#focusables();
+    if (!items.length) return;
+    const current = document.activeElement;
+    const index = Math.max(0, items.indexOf(current));
+    const next = items[(index + direction + items.length) % items.length];
+    next?.focus();
+  }
+
+  #changeTab(direction) {
+    const index = PAUSE_TABS.findIndex((tab) => tab.id === this.activeTab);
+    const next = PAUSE_TABS[(index + direction + PAUSE_TABS.length) % PAUSE_TABS.length];
+    this.#selectTab(next.id);
+  }
+
+  #adjustFocused(direction) {
+    const active = document.activeElement;
+    if (active?.tagName === 'INPUT' && active.type === 'range') {
+      const step = Number(active.step) || 0.05;
+      const min = Number(active.min) || 0;
+      const max = Number(active.max) || 1;
+      active.value = String(Math.max(min, Math.min(max, Number(active.value) + step * direction)));
+      active.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    }
+    if (active?.tagName === 'SELECT') {
+      const next = Math.max(0, Math.min(active.options.length - 1, active.selectedIndex + direction));
+      if (next !== active.selectedIndex) {
+        active.selectedIndex = next;
+        active.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return true;
+    }
+    return false;
+  }
+
+  #activateFocused() {
+    const active = document.activeElement;
+    if (!active || !this.panel?.contains(active)) return;
+    if (active.tagName === 'BUTTON') active.click();
+    else if (active.tagName === 'INPUT' && ['checkbox', 'radio'].includes(active.type)) active.click();
+    else if (active.tagName === 'SELECT') this.#adjustFocused(1);
+  }
+
   update() {
     this.controls?.update();
-    if (!this.controls?.capture && this.engine.input.wasPressed('pause')) this.engine.scenes.pop();
+    if (this.controls?.capture) return;
+
+    const input = this.engine.input;
+    if (menuStartPressed(input) || menuBackPressed(input)) {
+      this.engine.scenes.pop();
+      return;
+    }
+    if (menuSelectPressed(input)) {
+      this.#activateFocused();
+      return;
+    }
+
+    const direction = menuDirection(input);
+    if (direction === 'left') {
+      if (!this.#adjustFocused(-1)) this.#changeTab(-1);
+      return;
+    }
+    if (direction === 'right') {
+      if (!this.#adjustFocused(1)) this.#changeTab(1);
+      return;
+    }
+    if (direction === 'up') {
+      this.#moveFocus(-1);
+      return;
+    }
+    if (direction === 'down') this.#moveFocus(1);
   }
 
   async exit() {

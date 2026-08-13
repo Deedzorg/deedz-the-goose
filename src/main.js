@@ -1,6 +1,8 @@
 import './styles.css';
+import './polish.css';
 import { DeedzEngine } from './engine/DeedzEngine.js';
 import { GooseGame } from './games/deedz-the-goose/GooseGame.js';
+import { BossGuidanceSystem } from './games/deedz-the-goose/systems/BossGuidanceSystem.js';
 
 async function bootstrap() {
   const game = new GooseGame();
@@ -10,8 +12,10 @@ async function bootstrap() {
   const persistBeforeExit = () => engine.save?.persist?.();
   window.addEventListener('beforeunload', persistBeforeExit);
 
+  let bossGuidance = null;
   try {
     await engine.initialize(game);
+    bossGuidance = new BossGuidanceSystem(engine);
     await engine.start();
   } catch (error) {
     console.error('[Deedz Engine] Fatal startup error', error);
@@ -30,6 +34,7 @@ async function bootstrap() {
   if (import.meta.hot) {
     import.meta.hot.dispose(async () => {
       window.removeEventListener('beforeunload', persistBeforeExit);
+      bossGuidance?.destroy();
       await engine.shutdown();
     });
   }
