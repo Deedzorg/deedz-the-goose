@@ -3,16 +3,26 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { gooseClasses } from '../src/games/deedz-the-goose/data/characters.js';
 import { levels } from '../src/games/deedz-the-goose/data/levels.js';
-import { MENU_GAMEPAD, menuBackPressed, menuDirection, menuSelectPressed, menuStartPressed, menuTabDirection } from '../src/games/deedz-the-goose/data/menuNavigation.js';
+import { MENU_GAMEPAD, createMenuRepeatState, menuBackPressed, menuDirection, menuRepeatDirection, menuSelectPressed, menuStartPressed, menuTabDirection } from '../src/games/deedz-the-goose/data/menuNavigation.js';
 import { bossGuidanceLabel } from '../src/games/deedz-the-goose/systems/BossGuidanceSystem.js';
 import { flockScore, nextEchoPreview } from '../src/games/deedz-the-goose/data/progression.js';
 import { progressionDirective } from '../src/games/deedz-the-goose/data/progressionDirective.js';
+import { shouldSimulateWorld } from '../src/engine/DeedzEngine.js';
 import { RoomManager } from '../server/rooms/RoomManager.js';
 
-function fakeInput({ actions = [], buttons = [] } = {}) {
+function fakeInput({ actions = [], buttons = [], heldActions = [], heldButtons = [] } = {}) {
   const actionSet = new Set(actions);
   const buttonSet = new Set(buttons);
-  return { wasPressed: (action) => actionSet.has(action), gamepad: { wasPressed: (button) => buttonSet.has(button) } };
+  const heldActionSet = new Set(heldActions);
+  const heldButtonSet = new Set(heldButtons);
+  return {
+    wasPressed: (action) => actionSet.has(action),
+    value: (action) => heldActionSet.has(action) ? 1 : 0,
+    gamepad: {
+      wasPressed: (button) => buttonSet.has(button),
+      isDown: (button) => heldButtonSet.has(button),
+    },
+  };
 }
 
 test('controller menu navigation maps D-pad, selection, back, Menu, and shoulder page switching', () => {
@@ -32,11 +42,23 @@ test('controller menu navigation maps D-pad, selection, back, Menu, and shoulder
   assert.equal(menuStartPressed(fakeInput({ buttons: [9] })), true);
 });
 
-test('pause scene safely removes its overlay before replacing the world scene', async () => {
+test('held stick or D-pad repeats menu movement after a deliberate initial delay', () => {
+  const repeat = createMenuRepeatState();
+  assert.equal(menuRepeatDirection(fakeInput({ actions: ['down'], heldActions: ['down'] }), repeat, 1000), 'down');
+  assert.equal(menuRepeatDirection(fakeInput({ heldActions: ['down'] }), repeat, 1100), null);
+  assert.equal(menuRepeatDirection(fakeInput({ heldActions: ['down'] }), repeat, 1281), 'down');
+  assert.equal(menuRepeatDirection(fakeInput({ heldActions: ['down'] }), repeat, 1387), 'down');
+  assert.equal(menuRepeatDirection(fakeInput(), repeat, 1400), null);
+  assert.equal(repeat.direction, null);
+});
+
+test('pause destination changes are atomic and global gameplay simulation freezes during transitions', async () => {
   const source = await readFile(new URL('../src/games/deedz-the-goose/scenes/PauseScene.js', import.meta.url), 'utf8');
-  const popIndex = source.indexOf('await this.engine.scenes.pop');
-  const changeIndex = source.indexOf('await this.engine.scenes.change');
-  assert.ok(popIndex >= 0 && changeIndex > popIndex, 'pause must pop before changing destination scenes');
+  assert.equal(source.includes('await this.engine.scenes.pop'), false, 'restart/main-menu must not resume the old world between transitions');
+  assert.match(source, /await this\.engine\.scenes\.change\(sceneId, data\)/);
+  assert.equal(shouldSimulateWorld({ transitioning: true, active: { blocksWorld: false } }), false);
+  assert.equal(shouldSimulateWorld({ transitioning: false, active: { blocksWorld: true } }), false);
+  assert.equal(shouldSimulateWorld({ transitioning: false, active: { blocksWorld: false } }), true);
   assert.match(source, /id: 'records'/);
   assert.match(source, /menuTabDirection/);
 });
