@@ -2,7 +2,7 @@ import { Scene } from '../../../engine/scenes/Scene.js';
 import { Screen } from '../../../engine/ui/Screen.js';
 import { Button } from '../../../engine/ui/Button.js';
 import { ControlsSettingsPanel } from '../ui/ControlsSettingsPanel.js';
-import { menuBackPressed, menuDirection, menuSelectPressed, menuStartPressed, menuTabDirection } from '../data/menuNavigation.js';
+import { createMenuRepeatState, menuBackPressed, menuRepeatDirection, menuSelectPressed, menuStartPressed, menuTabDirection } from '../data/menuNavigation.js';
 
 export const PAUSE_TABS = Object.freeze([
   { id: 'mission', label: 'Mission' },
@@ -15,16 +15,12 @@ function isVisible(element) {
   return Boolean(element && !element.disabled && !element.hidden && element.getClientRects?.().length);
 }
 
-function centerOf(element) {
-  const rect = element.getBoundingClientRect();
-  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-}
-
 export class PauseScene extends Scene {
   constructor() {
     super('pause', { blocksWorld: true, transparent: true });
     this.activeTab = 'mission';
     this.leaving = false;
+    this.menuRepeat = createMenuRepeatState();
   }
 
   async enter(data) {
@@ -35,14 +31,14 @@ export class PauseScene extends Scene {
     panel.innerHTML = `
       <div class="deedz-kicker">MISSION CONTROL</div>
       <h1 class="deedz-title deedz-title--compact">PAUSED</h1>
-      <p class="deedz-menu-hint">Controller: D-pad moves inside each page · LB/RB changes pages · A selects · B/Menu resumes</p>
+      <p class="deedz-menu-hint">Controller: ↑/↓ moves · ←/→ adjusts or crosses a row · LB/RB changes pages · A selects · B/Menu resumes</p>
       <div class="deedz-tabs" role="tablist" aria-label="Pause menu sections" data-tabs></div>
       <div class="deedz-tab-panels">
         <section class="deedz-tab-panel" role="tabpanel" data-tab-panel="mission">
           <p class="deedz-subtitle">Check the next objective, continue the run, restart, or safely return to the title screen.</p>
           <div class="deedz-pause-summary">
             <strong>Adventure progress is saved locally.</strong>
-            <span>Up/down moves through items. Left/right moves across rows and settings. LB/RB jumps between pages.</span>
+            <span>Up/down walks the current page in a fixed order. Left/right changes a setting or moves across a remap row.</span>
           </div>
           <div class="deedz-actions deedz-actions--horizontal" data-actions></div>
         </section>
@@ -94,7 +90,8 @@ export class PauseScene extends Scene {
     this.menu?.setDisabled(true);
     this.engine.input.setEnabled(false);
     try {
-      await this.engine.scenes.pop({ destination: sceneId });
+      // Replace the entire pause+world stack in one SceneManager transition.
+      // Never expose/resume the old world between Pause and the destination.
       await this.engine.scenes.change(sceneId, data);
       this.engine.input.setEnabled(true);
     } catch (error) {
@@ -107,6 +104,8 @@ export class PauseScene extends Scene {
   #selectTab(id, { focus = 'content' } = {}) {
     if (!PAUSE_TABS.some((tab) => tab.id === id)) return;
     this.activeTab = id;
+    this.menuRepeat.direction = null;
+    this.menuRepeat.nextAt = 0;
     for (const [tabId, button] of this.tabButtons) {
       const selected = tabId === id;
       button.setAttribute('aria-selected', String(selected));
@@ -166,12 +165,39 @@ export class PauseScene extends Scene {
       }
       return true;
     }
+    if (active?.tagName === 'INPUT' && active.type === 'checkbox') {
+      const next = direction > 0;
+      if (active.checked !== next) {
+        active.checked = next;
+        active.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return true;
+    }
     return false;
   }
 
-  #moveSpatial(direction) {
+  #moveLinear(step) {
+    const items = this.#focusables();
+    if (!items.length) return this.#focus(this.tabButtons.get(this.activeTab));
     const active = document.activeElement;
-    const activeTabButton = this.tabButtons.get(this.activeTab);
+    const index = items.indexOf(active);
+    const start = index >= 0 ? index : (step > 0 ? -1 : 0);
+    return this.#focus(items[(start + step + items.length) % items.length]);
+  }
+
+  #moveAcrossRow(direction) {
+    const active = document.activeElement;
+    const row = active?.closest?.('.deedz-control-row');
+    if (!row) return false;
+    const items = [...row.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled)')].filter(isVisible);
+    const index = items.indexOf(active);
+    if (index < 0 || items.length < 2) return false;
+    const next = Math.max(0, Math.min(items.length - 1, index + direction));
+    return next !== index ? this.#focus(items[next]) : true;
+  }
+
+  #moveMenu(direction) {
+    const active = document.activeElement;
     const isTab = [...this.tabButtons.values()].includes(active);
     if (isTab) {
       if (direction === 'left') this.#changeTab(-1, 'tab');
@@ -180,28 +206,14 @@ export class PauseScene extends Scene {
       return true;
     }
 
-    if ((direction === 'left' || direction === 'right') && this.#adjustFocused(direction === 'left' ? -1 : 1)) return true;
-
-    const items = this.#focusables();
-    if (!items.length) return this.#focus(activeTabButton);
-    if (!items.includes(active)) return this.#focus(items[0]);
-
-    const origin = centerOf(active);
-    const candidates = items.filter((item) => item !== active).map((item) => {
-      const point = centerOf(item);
-      const dx = point.x - origin.x;
-      const dy = point.y - origin.y;
-      const valid = direction === 'left' ? dx < -4 : direction === 'right' ? dx > 4 : direction === 'up' ? dy < -4 : dy > 4;
-      if (!valid) return null;
-      const primary = direction === 'left' || direction === 'right' ? Math.abs(dx) : Math.abs(dy);
-      const secondary = direction === 'left' || direction === 'right' ? Math.abs(dy) : Math.abs(dx);
-      return { item, score: primary * 4 + secondary };
-    }).filter(Boolean).sort((a, b) => a.score - b.score);
-
-    if (candidates[0]) return this.#focus(candidates[0].item);
-    if (direction === 'up') return this.#focus(activeTabButton);
-    if (direction === 'left') { this.#changeTab(-1); return true; }
-    if (direction === 'right') { this.#changeTab(1); return true; }
+    if (direction === 'up') return this.#moveLinear(-1);
+    if (direction === 'down') return this.#moveLinear(1);
+    if (direction === 'left' || direction === 'right') {
+      const step = direction === 'left' ? -1 : 1;
+      if (this.#adjustFocused(step)) return true;
+      if (this.#moveAcrossRow(step)) return true;
+      return false;
+    }
     return false;
   }
 
@@ -231,8 +243,8 @@ export class PauseScene extends Scene {
       this.#activateFocused();
       return;
     }
-    const direction = menuDirection(input);
-    if (direction) this.#moveSpatial(direction);
+    const direction = menuRepeatDirection(input, this.menuRepeat);
+    if (direction) this.#moveMenu(direction);
   }
 
   async exit() {
