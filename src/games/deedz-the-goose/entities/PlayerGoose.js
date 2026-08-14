@@ -2,9 +2,10 @@ import { Container, Graphics } from 'pixi.js';
 import { Entity } from '../../../engine/entities/Entity.js';
 import { Collider } from '../../../engine/physics/Collider.js';
 import { approach, clamp, signNonZero } from '../../../shared/math.js';
-import { PECK_PROFILE, WING_WHAP_PROFILE } from '../data/combat.js';
+import { PECK_PROFILE, recoverableCrumbLoss, WING_WHAP_PROFILE } from '../data/combat.js';
 import { chargedThrowProfile, THROW_CHARGE } from '../data/throwing.js';
 import { WingBurst } from './ActionEffects.js';
+import { RecoverableCrumb } from './Collectible.js';
 
 export function movementSpeedForStance(baseSpeed, { crouching = false, grounded = false } = {}) {
   return baseSpeed * (crouching && grounded ? 0.36 : 1);
@@ -51,12 +52,39 @@ export class PlayerGoose extends Entity {
   }
 
   #draw() {
+    const presentation = this.character.presentation ?? {};
+    const bodyWidth = 34 * (presentation.bodyWidth ?? 1);
+    const bodyHeight = 23 * (presentation.bodyHeight ?? 1);
+    const headRadius = 15 * (presentation.headScale ?? 1);
     this.art = new Container();
     this.body = new Graphics();
-    this.body.ellipse(0, 0, 34, 23).fill(this.character.color);
-    this.body.circle(30, -24, 15).fill(this.character.color);
+    this.body.ellipse(0, 0, bodyWidth, bodyHeight).fill(this.character.color);
+    this.body.circle(30, -24, headRadius).fill(this.character.color);
     this.body.moveTo(40, -25).lineTo(60, -18).lineTo(40, -13).closePath().fill(0xffa62b);
     this.body.circle(34, -29, 2.8).fill(0x07111f);
+
+    this.details = new Graphics();
+    if (presentation.detail === 'smile') {
+      this.details.circle(31, -21, 3.8).fill({ color: this.character.accent, alpha: 0.72 });
+      this.details.arc(33, -23, 7, 0.2, 1.35).stroke({ width: 2.5, color: 0x07111f });
+    } else if (presentation.detail === 'crumb') {
+      this.details.roundRect(-18, -12, 27, 23, 7).fill(this.character.accent).stroke({ width: 3, color: 0x9a6237 });
+      this.details.moveTo(-11, -7).lineTo(-7, 2).moveTo(-1, -7).lineTo(3, 2).stroke({ width: 2, color: 0x9a6237 });
+    } else if (presentation.detail === 'curves') {
+      this.details.moveTo(-30, -9).bezierCurveTo(-13, -22, 8, -17, 20, -4).stroke({ width: 4, color: this.character.accent, alpha: 0.95 });
+      this.details.moveTo(-29, 10).bezierCurveTo(-10, 23, 10, 16, 22, 4).stroke({ width: 4, color: this.character.accent, alpha: 0.95 });
+      this.details.circle(-28, 0, 4).fill(this.character.accent);
+    } else if (presentation.detail === 'heart') {
+      this.details.moveTo(-8, 4).bezierCurveTo(-18, -3, -15, -13, -7, -8).bezierCurveTo(1, -13, 5, -3, -8, 4).fill(this.character.accent);
+    } else if (presentation.detail === 'scowl') {
+      this.details.moveTo(27, -36).lineTo(39, -32).stroke({ width: 4, color: 0x07111f });
+    } else if (presentation.detail === 'tuft') {
+      this.details.moveTo(21, -39).bezierCurveTo(19, -50, 27, -52, 29, -42).bezierCurveTo(31, -53, 40, -50, 38, -40).stroke({ width: 4, color: this.character.accent });
+    } else if (presentation.detail === 'spark') {
+      this.details.moveTo(-7, -5).lineTo(-2, 1).lineTo(-7, 7).lineTo(-13, 1).closePath().fill(this.character.accent);
+    } else if (presentation.detail === 'ember') {
+      this.details.moveTo(-34, 3).bezierCurveTo(-48, -10, -43, -22, -30, -14).bezierCurveTo(-38, -5, -31, 2, -34, 3).fill(0xff6b35);
+    }
 
     this.wing = new Graphics();
     this.wing.ellipse(-20, 4, 20, 11).fill(this.character.accent).stroke({ width: 3, color: this.character.color });
@@ -74,7 +102,7 @@ export class PlayerGoose extends Entity {
     this.throwChargeArt.position.set(54, -38);
     this.throwChargeArt.visible = false;
 
-    this.art.addChild(this.legs, this.body, this.wing, this.blink, this.throwChargeArt);
+    this.art.addChild(this.legs, this.body, this.details, this.wing, this.blink, this.throwChargeArt);
     this.display.addChild(this.art);
   }
 
@@ -157,7 +185,10 @@ export class PlayerGoose extends Entity {
 
     if (input.wasPressed('peck') && this.peckCooldown <= 0 && this.attackCooldown <= 0 && !this.crouching) {
       this.peckCooldown = PECK_PROFILE.cooldown;
-      this.velocity.x += this.facing * (this.grounded ? PECK_PROFILE.groundLunge : PECK_PROFILE.airLunge);
+      const lunge = this.grounded ? PECK_PROFILE.groundLunge : PECK_PROFILE.airLunge;
+      this.velocity.x = this.facing * Math.max(lunge, Math.abs(this.velocity.x));
+      this.velocity.y *= 0.35;
+      this.dashTime = Math.max(this.dashTime, PECK_PROFILE.dashTime);
       engine.events.emit('goose:peck', { player: this });
       engine.network.sendAction('peck', { x: this.x, y: this.y, facing: this.facing });
       if (engine.save.get('settings.sfx', true)) engine.audio.sfx.tone({ frequency: 410, slide: -130, duration: 0.045, type: 'square', volume: 0.055 });
@@ -377,6 +408,44 @@ export class PlayerGoose extends Entity {
     if (engine.save.get('settings.screenShake', true)) engine.renderer.camera.shake(10, 0.18);
     if (this.hp <= 0) engine.events.emit('player:defeated', { player: this });
     return true;
+  }
+
+  dropRecoverableCrumbs(engine, { source = null, maximum = 3 } = {}) {
+    const ammo = Math.max(0, Math.floor(Number(engine.save.get('progress.crumbAmmo', 0)) || 0));
+    const lost = recoverableCrumbLoss(ammo, maximum);
+    if (!lost) return 0;
+    const nextAmmo = ammo - lost;
+    engine.save.set('progress.crumbAmmo', nextAmmo);
+    engine.events.emit('player:ammo', { ammo: nextAmmo, lost, source });
+
+    const world = engine.scenes?.get?.('world');
+    const platforms = world?.platforms ?? [];
+    const parent = this.display.parent;
+    const timestamp = Math.floor((engine.loop?.time?.elapsed ?? Date.now()) * 1000);
+    for (let index = 0; index < lost; index += 1) {
+      const direction = index % 2 === 0 ? -1 : 1;
+      const spread = 52 + index * 28;
+      const dropX = this.x + direction * (18 + index * 10);
+      const support = platforms
+        .map((platform) => platform.collider)
+        .filter((collider) => collider?.enabled !== false && dropX >= collider.left - 20 && dropX <= collider.right + 20 && collider.top >= this.y - 10)
+        .sort((a, b) => a.top - b.top)[0];
+      const landingY = support ? support.top - 18 : Math.min((world?.level?.height ?? 1080) - 36, this.y + 220);
+      const crumb = new RecoverableCrumb({
+        id: `lost-${timestamp}-${index}`,
+        x: dropX,
+        y: this.y - 30,
+        landingY,
+        velocityX: direction * spread,
+        velocityY: -360 - index * 35,
+      });
+      if (parent) engine.entities.addImmediate(crumb, parent);
+      else engine.entities.addImmediate(crumb);
+      engine.physics.addCollider(crumb.collider);
+    }
+    engine.entities.add(new WingBurst({ x: this.x, y: this.y - 28, color: 0xf7ca76, count: 8 + lost * 2, label: `-${lost} CRUMBS!` }), parent);
+    engine.ui.toast(`A Crumb-Snatch Bat knocked loose ${lost} crumb${lost === 1 ? '' : 's'}—grab them back!`, { type: 'warning', duration: 2600 });
+    return lost;
   }
 
   heal(amount, engine) {

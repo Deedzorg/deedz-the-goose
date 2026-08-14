@@ -42,7 +42,9 @@ class LobbedCrumb extends Entity {
 
 export class Enemy extends Entity {
   constructor({ id = null, x = 0, y = 0, patrol = 170, rank = 'scout', archetype = 'charger', name = null, level = 1 } = {}) {
-    super({ id: id ? `enemy-${id}` : undefined, name: 'BreadFox', tags: ['enemy', 'damageable', 'fox'] });
+    const definition = enemyDefinition(archetype);
+    super({ id: id ? `enemy-${id}` : undefined, name: definition.name, tags: ['enemy', 'damageable', definition.species ?? 'fox'] });
+    if (definition.flying) this.addTag('flying-enemy');
     this.enemyId = id ?? this.id;
     this.x = x;
     this.y = y;
@@ -50,12 +52,12 @@ export class Enemy extends Entity {
     this.originX = x;
     this.patrol = Math.max(80, patrol);
     this.rank = rank;
-    this.archetype = enemyDefinition(archetype).id;
-    this.definition = enemyDefinition(this.archetype);
+    this.archetype = definition.id;
+    this.definition = definition;
     this.displayName = name || this.definition.name;
     this.level = Math.max(1, Math.floor(Number(level) || 1));
     this.direction = 1;
-    this.hp = (rank === 'captain' ? 7 : rank === 'guard' ? 4 : 3) + this.definition.hpBonus + Math.floor((this.level - 1) / 2);
+    this.hp = Math.max(2, (rank === 'captain' ? 7 : rank === 'guard' ? 4 : 3) + this.definition.hpBonus + Math.floor((this.level - 1) / 3));
     this.maxHp = this.hp;
     this.state = 'patrol';
     this.stateTime = 0;
@@ -65,8 +67,9 @@ export class Enemy extends Entity {
     this.lastPlayerImpactAt = Number.NEGATIVE_INFINITY;
     this.grounded = false;
     this.groundPlatform = null;
-    const large = rank === 'captain' || this.archetype === 'brute';
-    this.collider = new Collider(this, { width: large ? 86 : 72, height: large ? 60 : 50, layer: 4, mask: 193 });
+    const large = rank === 'captain' || this.archetype === 'brute' || this.archetype === 'penguin';
+    const flying = this.archetype === 'bat';
+    this.collider = new Collider(this, { width: flying ? 68 : large ? 86 : 72, height: flying ? 42 : large ? 60 : 50, layer: 4, mask: 193 });
     this.#draw();
   }
 
@@ -76,22 +79,11 @@ export class Enemy extends Entity {
     this.art.scale.set(scale);
 
     this.tail = new Graphics();
-    this.tail.moveTo(-30, -2).bezierCurveTo(-70, -38, -86, 4, -48, 18).stroke({ width: 13, color: 0xf08b42 });
-    this.tail.moveTo(-52, 11).bezierCurveTo(-66, 8, -74, 5, -80, -4).stroke({ width: 7, color: 0xffe8cc });
-
     this.body = new Graphics();
-    this.body.ellipse(0, 0, 37, 24).fill(this.definition.bodyColor);
-    this.body.circle(29, -21, 19).fill(this.definition.bodyColor);
-    this.body.moveTo(18, -34).lineTo(15, -55).lineTo(32, -39).closePath().fill(0xd75f28);
-    this.body.moveTo(38, -35).lineTo(50, -53).lineTo(51, -29).closePath().fill(0xd75f28);
-    this.body.moveTo(39, -17).lineTo(58, -10).lineTo(40, -5).closePath().fill(0xffd9b3);
-    this.body.circle(35, -26, 3).fill(0x07111f);
-    this.body.moveTo(-18, 18).lineTo(-24, 35).stroke({ width: 6, color: 0x472b24 });
-    this.body.moveTo(18, 18).lineTo(23, 35).stroke({ width: 6, color: 0x472b24 });
-
     this.bread = new Graphics();
-    this.bread.roundRect(-12, -23, 27, 24, 8).fill(this.definition.breadColor).stroke({ width: 3, color: 0xf7ca76 });
-    this.bread.moveTo(-6, -18).lineTo(-2, -7).moveTo(3, -18).lineTo(7, -7).stroke({ width: 2, color: 0x9a6237 });
+    if (this.archetype === 'penguin') this.#drawPenguin();
+    else if (this.archetype === 'bat') this.#drawBat();
+    else this.#drawFox();
 
     if (this.rank === 'captain') {
       this.crown = new Graphics().moveTo(12, -51).lineTo(20, -70).lineTo(29, -55).lineTo(40, -72).lineTo(46, -49).closePath().fill(0xffd95a).stroke({ width: 3, color: 0x9a6237 });
@@ -115,10 +107,50 @@ export class Enemy extends Entity {
     this.alert.visible = false;
 
     this.healthBar = new Graphics();
-    this.healthBar.y = -70;
+    this.healthBar.y = this.archetype === 'bat' ? -58 : -70;
     this.art.addChild(this.tail, this.body, this.bread, this.healthBar, this.alert);
     this.display.addChild(this.art);
     this.#drawHealth();
+  }
+
+  #drawFox() {
+    this.tail.moveTo(-30, -2).bezierCurveTo(-70, -38, -86, 4, -48, 18).stroke({ width: 13, color: 0xf08b42 });
+    this.tail.moveTo(-52, 11).bezierCurveTo(-66, 8, -74, 5, -80, -4).stroke({ width: 7, color: 0xffe8cc });
+    this.body.ellipse(0, 0, 37, 24).fill(this.definition.bodyColor);
+    this.body.circle(29, -21, 19).fill(this.definition.bodyColor);
+    this.body.moveTo(18, -34).lineTo(15, -55).lineTo(32, -39).closePath().fill(0xd75f28);
+    this.body.moveTo(38, -35).lineTo(50, -53).lineTo(51, -29).closePath().fill(0xd75f28);
+    this.body.moveTo(39, -17).lineTo(58, -10).lineTo(40, -5).closePath().fill(0xffd9b3);
+    this.body.circle(35, -26, 3).fill(0x07111f);
+    this.body.moveTo(-18, 18).lineTo(-24, 35).stroke({ width: 6, color: 0x472b24 });
+    this.body.moveTo(18, 18).lineTo(23, 35).stroke({ width: 6, color: 0x472b24 });
+    this.bread.roundRect(-12, -23, 27, 24, 8).fill(this.definition.breadColor).stroke({ width: 3, color: 0xf7ca76 });
+    this.bread.moveTo(-6, -18).lineTo(-2, -7).moveTo(3, -18).lineTo(7, -7).stroke({ width: 2, color: 0x9a6237 });
+  }
+
+  #drawPenguin() {
+    this.tail.ellipse(-33, 2, 11, 29).fill(0x172333).stroke({ width: 3, color: 0x8de7ff });
+    this.body.ellipse(0, 0, 34, 40).fill(this.definition.bodyColor).stroke({ width: 4, color: 0x8de7ff });
+    this.body.ellipse(5, 6, 23, 30).fill(0xf1f7ff);
+    this.body.circle(8, -31, 22).fill(0x172333);
+    this.body.circle(14, -35, 3).fill(0xffffff);
+    this.body.circle(15, -35, 1.5).fill(0x07111f);
+    this.body.moveTo(27, -29).lineTo(47, -22).lineTo(26, -15).closePath().fill(0xffa62b);
+    this.body.ellipse(-14, 39, 18, 6).fill(0xffa62b);
+    this.body.ellipse(18, 39, 18, 6).fill(0xffa62b);
+    this.bread.roundRect(-21, -5, 42, 11, 5).fill(this.definition.breadColor).stroke({ width: 3, color: 0xffffff });
+  }
+
+  #drawBat() {
+    this.tail.moveTo(-12, -3).bezierCurveTo(-48, -34, -64, -18, -48, 8).bezierCurveTo(-30, -1, -24, 22, -8, 8).closePath().fill(0x704f9a).stroke({ width: 3, color: 0xb794ff });
+    this.body.moveTo(12, -3).bezierCurveTo(48, -34, 64, -18, 48, 8).bezierCurveTo(30, -1, 24, 22, 8, 8).closePath().fill(0x704f9a).stroke({ width: 3, color: 0xb794ff });
+    this.body.ellipse(0, 0, 22, 28).fill(this.definition.bodyColor);
+    this.body.moveTo(-14, -20).lineTo(-19, -39).lineTo(-3, -24).closePath().fill(0x39254f);
+    this.body.moveTo(14, -20).lineTo(19, -39).lineTo(3, -24).closePath().fill(0x39254f);
+    this.body.circle(-7, -8, 4).fill(0xffd95a).circle(7, -8, 4).fill(0xffd95a);
+    this.body.circle(-7, -8, 1.8).fill(0x07111f).circle(7, -8, 1.8).fill(0x07111f);
+    this.body.moveTo(-7, 14).lineTo(-3, 22).lineTo(0, 14).lineTo(4, 22).lineTo(8, 14).stroke({ width: 3, color: 0xd8c7ff });
+    this.bread.roundRect(-11, 19, 22, 14, 5).fill(this.definition.breadColor).stroke({ width: 3, color: 0xfff1a8 });
   }
 
   #drawHealth() {
@@ -137,7 +169,8 @@ export class Enemy extends Entity {
 
     if (!player || player.hp <= 0) {
       this.#setState('patrol');
-      this.#patrol(dt);
+      if (this.archetype === 'bat') this.#batPatrol(dt, engine);
+      else this.#patrol(dt);
       return;
     }
 
@@ -148,6 +181,11 @@ export class Enemy extends Entity {
     if (this.stunTimer > 0) {
       this.#setState('stunned');
       this.velocity.x = approach(this.velocity.x, 0, 420 * dt);
+      if (this.archetype === 'bat') this.velocity.y = approach(this.velocity.y, 0, 420 * dt);
+    } else if (this.archetype === 'bat') {
+      this.#bat(dt, engine, { player, dx, dy, playerDistance });
+    } else if (this.archetype === 'penguin') {
+      this.#penguin(dt, { dx, dy, playerDistance });
     } else if (this.archetype === 'lobber') {
       this.#lobber(dt, engine, { player, dx, dy, playerDistance });
     } else if (this.state === 'windup') {
@@ -187,10 +225,86 @@ export class Enemy extends Entity {
     this.art.scale.x = Math.abs(this.art.scale.x) * this.direction;
     this.alert.scale.x = this.direction;
     this.healthBar.scale.x = this.direction;
-    this.alert.visible = ['windup', 'lob-windup', 'chase'].includes(this.state);
+    this.alert.visible = ['windup', 'lob-windup', 'slide-windup', 'swoop-windup', 'chase'].includes(this.state);
     const runRate = Math.min(1, Math.abs(this.velocity.x) / 260);
     this.body.y = Math.sin(engine.loop.time.elapsed * 14) * 2 * runRate;
-    this.tail.rotation = Math.sin(engine.loop.time.elapsed * 7 + this.x * 0.01) * 0.18;
+    this.tail.rotation = this.archetype === 'bat'
+      ? Math.sin(engine.loop.time.elapsed * 19 + this.x * 0.01) * 0.34
+      : Math.sin(engine.loop.time.elapsed * 7 + this.x * 0.01) * 0.18;
+  }
+
+  #bat(dt, engine, { dx, dy, playerDistance }) {
+    this.direction = signNonZero(dx, this.direction);
+    if (this.state === 'swoop-windup') {
+      this.velocity.x = approach(this.velocity.x, 0, 920 * dt);
+      this.velocity.y = approach(this.velocity.y, -70, 760 * dt);
+      if (this.stateTime >= 0.3) {
+        this.velocity.x = this.direction * (520 + Math.min(170, this.level * 9));
+        this.velocity.y = Math.max(160, Math.min(520, dy * 2.4));
+        this.#setState('swoop');
+      }
+      return;
+    }
+    if (this.state === 'swoop') {
+      if (this.stateTime >= 0.68) {
+        this.attackCooldown = Math.max(this.attackCooldown, 1.8);
+        this.#setState('retreat');
+      }
+      return;
+    }
+    if (this.state === 'retreat') {
+      const retreatY = this.spawn.y - 45;
+      this.velocity.x = approach(this.velocity.x, -this.direction * 260, 700 * dt);
+      this.velocity.y = approach(this.velocity.y, (retreatY - this.y) * 2.2, 880 * dt);
+      if (this.stateTime >= 0.9) this.#setState('patrol');
+      return;
+    }
+    if (playerDistance < 760) {
+      this.#setState('chase');
+      const targetY = this.y + dy - 145;
+      this.velocity.x = approach(this.velocity.x, Math.max(-330, Math.min(330, dx * 1.35)), 680 * dt);
+      this.velocity.y = approach(this.velocity.y, Math.max(-260, Math.min(260, (targetY - this.y) * 1.7)), 650 * dt);
+      if (this.attackCooldown <= 0 && Math.abs(dx) < 300 && dy > 25 && dy < 310) this.#setState('swoop-windup');
+      return;
+    }
+    this.#batPatrol(dt, engine);
+  }
+
+  #batPatrol(dt, engine) {
+    const targetY = this.spawn.y + Math.sin((engine.loop?.time?.elapsed ?? 0) * 1.7 + this.originX * 0.01) * 55;
+    if (Math.abs(this.x - this.originX) >= this.patrol) this.direction *= -1;
+    this.velocity.x = approach(this.velocity.x, this.direction * 125, 420 * dt);
+    this.velocity.y = approach(this.velocity.y, (targetY - this.y) * 2.4, 520 * dt);
+  }
+
+  #penguin(dt, { dx, dy, playerDistance }) {
+    this.direction = signNonZero(dx, this.direction);
+    if (this.state === 'slide-windup') {
+      this.velocity.x = approach(this.velocity.x, 0, 1000 * dt);
+      if (this.stateTime >= 0.44) {
+        this.velocity.x = this.direction * (610 + Math.min(170, this.level * 8));
+        this.#setState('ice-slide');
+      }
+      return;
+    }
+    if (this.state === 'ice-slide') {
+      if (this.stateTime >= 0.75 || Math.abs(dx) > 720) {
+        this.attackCooldown = 1.35;
+        this.#setState('chase');
+      }
+      return;
+    }
+    if (playerDistance < 430 && Math.abs(dy) < 115 && this.attackCooldown <= 0) {
+      this.#setState('slide-windup');
+      return;
+    }
+    if (playerDistance < 620 && Math.abs(dy) < 180) {
+      this.#setState('chase');
+      this.velocity.x = approach(this.velocity.x, this.direction * 135, 520 * dt);
+      return;
+    }
+    this.#setState('patrol');
+    this.#patrol(dt);
   }
 
   #lobber(dt, engine, { player, dx, dy, playerDistance }) {
@@ -236,6 +350,7 @@ export class Enemy extends Entity {
   }
 
   land(y, platform = null) {
+    if (this.hasTag('flying-enemy')) return;
     this.y = y;
     if (platform?.bounce) {
       this.velocity.y = -platform.bounce * 0.72;
@@ -248,7 +363,20 @@ export class Enemy extends Entity {
     this.groundPlatform = platform;
   }
 
-  crumbDropCount() { return foxCrumbDropCount(this.rank); }
+  crumbDropCount() {
+    if (this.archetype === 'bat') return 2;
+    if (this.archetype === 'penguin') return this.rank === 'captain' ? 4 : 3;
+    return foxCrumbDropCount(this.rank);
+  }
+
+  onPlayerHit(player, engine) {
+    if (!this.definition.stealsCrumbs || !player) return 0;
+    this.attackCooldown = Math.max(this.attackCooldown, 2.2);
+    this.#setState('retreat');
+    this.velocity.x = -this.direction * 330;
+    this.velocity.y = -310;
+    return player.dropRecoverableCrumbs?.(engine, { source: this, maximum: 3 }) ?? 0;
+  }
 
   markPlayerImpact(engine) {
     this.lastPlayerImpactAt = Number(engine?.loop?.time?.elapsed) || 0;
@@ -301,13 +429,18 @@ export class Enemy extends Entity {
 
   defeat(engine, { cause = 'combat', source = null, reward = true, dropCrumbs = true, crumbCount = this.crumbDropCount() } = {}) {
     if (this.destroyed || this.defeated) return false;
+    if (this.hasTag('goose-lab-spawn')) {
+      reward = false;
+      dropCrumbs = false;
+    }
     this.defeated = true;
     this.hp = 0;
     this.collider.enabled = false;
     this.velocity.x = 0;
     this.velocity.y = 0;
     if (dropCrumbs) this.#dropCrumbs(engine, crumbCount, { cause, source });
-    const label = cause === 'stomp' ? 'STOMP!' : cause === 'water' ? 'SPLASH!' : cause === 'fall' ? 'FOX FELL!' : 'FOX DOWN!';
+    const noun = this.definition.species === 'bat' ? 'BAT' : this.definition.species === 'penguin' ? 'PENGUIN' : 'FOX';
+    const label = cause === 'stomp' ? 'STOMP!' : cause === 'water' ? 'SPLASH!' : cause === 'fall' ? `${noun} FELL!` : `${noun} DOWN!`;
     const color = cause === 'water' ? 0x55d6ff : cause === 'stomp' ? 0xffd95a : 0xffa65a;
     engine.entities.add(new WingBurst({ x: this.x, y: this.y - 24, color, count: 12, label }), this.display.parent);
     if (reward) {

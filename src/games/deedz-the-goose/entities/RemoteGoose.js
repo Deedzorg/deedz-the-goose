@@ -28,8 +28,9 @@ export class RemoteGoose extends Entity {
   #draw() {
     this.art = new Container();
     this.body = new Graphics();
+    this.details = new Graphics();
     this.wing = new Graphics();
-    this.art.addChild(this.body, this.wing);
+    this.art.addChild(this.body, this.details, this.wing);
 
     this.label = new Text({
       text: this.profile.name || 'Goose',
@@ -61,11 +62,24 @@ export class RemoteGoose extends Entity {
     if (this.character && nextProfile.name === this.profile.name && nextProfile.character === this.profile.character) return this;
     this.profile = nextProfile;
     this.character = characters.find((item) => item.id === this.profile.character) ?? characters[0];
+    const presentation = this.character.presentation ?? {};
+    const bodyWidth = 32 * (presentation.bodyWidth ?? 1);
+    const bodyHeight = 21 * (presentation.bodyHeight ?? 1);
+    const headRadius = 14 * (presentation.headScale ?? 1);
     this.body.clear()
-      .ellipse(0, 0, 32, 21).fill({ color: this.character.color, alpha: 0.88 })
-      .circle(28, -22, 14).fill({ color: this.character.color, alpha: 0.88 })
+      .ellipse(0, 0, bodyWidth, bodyHeight).fill({ color: this.character.color, alpha: 0.88 })
+      .circle(28, -22, headRadius).fill({ color: this.character.color, alpha: 0.88 })
       .moveTo(38, -23).lineTo(57, -17).lineTo(38, -12).closePath().fill(0xffa62b)
       .circle(32, -27, 2.5).fill(0x07111f);
+    this.details.clear();
+    if (presentation.detail === 'smile') this.details.circle(30, -20, 3.6).fill({ color: this.character.accent, alpha: 0.72 }).arc(32, -22, 7, 0.2, 1.35).stroke({ width: 2.5, color: 0x07111f });
+    else if (presentation.detail === 'crumb') this.details.roundRect(-18, -12, 27, 23, 7).fill(this.character.accent).stroke({ width: 3, color: 0x9a6237 }).moveTo(-11, -7).lineTo(-7, 2).moveTo(-1, -7).lineTo(3, 2).stroke({ width: 2, color: 0x9a6237 });
+    else if (presentation.detail === 'curves') this.details.moveTo(-30, -9).bezierCurveTo(-13, -22, 8, -17, 20, -4).moveTo(-29, 10).bezierCurveTo(-10, 23, 10, 16, 22, 4).stroke({ width: 4, color: this.character.accent, alpha: 0.95 }).circle(-28, 0, 4).fill(this.character.accent);
+    else if (presentation.detail === 'heart') this.details.moveTo(-8, 4).bezierCurveTo(-18, -3, -15, -13, -7, -8).bezierCurveTo(1, -13, 5, -3, -8, 4).fill(this.character.accent);
+    else if (presentation.detail === 'scowl') this.details.moveTo(26, -34).lineTo(38, -30).stroke({ width: 4, color: 0x07111f });
+    else if (presentation.detail === 'tuft') this.details.moveTo(20, -37).bezierCurveTo(18, -48, 26, -50, 28, -40).bezierCurveTo(30, -51, 39, -48, 37, -38).stroke({ width: 4, color: this.character.accent });
+    else if (presentation.detail === 'spark') this.details.moveTo(-7, -5).lineTo(-2, 1).lineTo(-7, 7).lineTo(-13, 1).closePath().fill(this.character.accent);
+    else if (presentation.detail === 'ember') this.details.moveTo(-32, 3).bezierCurveTo(-46, -10, -41, -22, -28, -14).bezierCurveTo(-36, -5, -29, 2, -32, 3).fill(0xff6b35);
     this.wing.clear().ellipse(-18, 3, 18, 9).fill({ color: this.character.accent, alpha: 0.9 });
     if (this.label) this.label.text = this.profile.name || 'Goose';
     return this;

@@ -14,7 +14,7 @@ Use these names when discussing balance, controls, bugs, or new features. The pa
 
 ## Combat and actions
 
-- **Peck** — fast, forgiving single-target melee. It has less reach and knockback than Wing Whap but recovers sooner.
+- **Power Peck** — a heavy single-target beak strike that lunges forward, deals three damage, and launches ordinary enemies backward.
 - **Wing Whap** — wider melee cleave that can hit several enemies and has the strongest close-range knockback.
 - **Charged Crumb Throw** — hold-and-release ranged attack that spends one throwable crumb.
 - **Power Crumb** — a nearly full Charged Crumb Throw that deals two damage.
@@ -41,6 +41,7 @@ On phones, the visible action set is **Flap, Wing Whap, Peck, Crumb, Honk, and D
 - **Echo Layer Evolution** — the world transformation reached at Foxfire Gate. Layer 1 has no boss requirement; later layers require their Breadstorm victory.
 - **Echo Supply** — persistent crumb ammunition and other carried resources.
 - **Fox Crumb Drop** — defeated scouts, guards, and captains drop two, three, or four collectible crumbs.
+- **Recoverable Crumb Spill** — a successful Crumb-Snatch Bat hit knocks loose up to three throwable crumbs. They arc out of Deedz and can be collected again without granting repeat progression.
 - **Flock Score** — score used for connected-player ranking.
 
 ## Enemy archetypes
@@ -49,6 +50,8 @@ On phones, the visible action set is **Flap, Wing Whap, Peck, Crumb, Honk, and D
 - **Pounce Fox** — mobile enemy that commits to leaping attacks.
 - **Crumb Lobber** — ranged enemy that pressures from a distance.
 - **Toast Guard** — sturdy brute that controls space.
+- **Ice-Slide Penguin** — Echo 10 ground enemy that telegraphs a fast sliding charge.
+- **Crumb-Snatch Bat** — Echo 10 flying enemy that winds up, swoops, and knocks loose recoverable crumbs only when its attack connects.
 - **Echo Captain** — stronger elite enemy.
 - **Baron Breadstorm** — evolving shared boss introduced with one heart and no shield in Echo Layer 2. Same-Echo geese share the fight; opening shields begin at Echo 5 and phase shields at Echo 7.
 
@@ -63,8 +66,11 @@ On phones, the visible action set is **Flap, Wing Whap, Peck, Crumb, Honk, and D
 ## Character terminology
 
 - **Goose Class** — gameplay stat profile and special trait.
-- **Advanced Goose Unlock** — Guardian Goose and Ember Goose remain visible but locked until Echo Layer 10.
+- **Eight-Goose Roster** — Silly, Happy Happy, Crumb, Curvy, Sweet, Bad Bad, Fun Size, and Ember Goose, each with a distinct silhouette and signature detail.
+- **Goose Unlock Challenges** — Silly Goose, Happy Happy Goose, and Crumb Goose start unlocked. Collect 50 crumbs for Sweet Goose, defeat 20 enemies for Bad Bad Goose, awaken 3 Echo Crystals for Fun Size Goose, defeat Breadstorm once for Ember Goose, and reach Echo 10 for Curvy Goose.
+- **Random Goose Name** — the dice button beside the profile name creates a new playful name and saves it immediately.
+- **Top Goose** — the main-menu honor names the highest-scoring goose among the local save and connected room players.
 - **Plumage** — cosmetic goose color; no stat effect.
 - **Deedz** — the default goose name, not a mechanic or game title.
 
-Good future requests include: “increase Peck reach,” “change Fox Stomp bounce,” “make Crumb Lobbers appear one layer earlier,” or “add a Layer Mutation after the second Breadstorm Crisis.”
+Good future requests include: “increase Power Peck reach,” “change Fox Stomp bounce,” “make Crumb-Snatch Bats appear one layer earlier,” or “add a Layer Mutation after the second Breadstorm Crisis.”

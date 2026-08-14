@@ -278,7 +278,7 @@ export function generateEvolutionLayout({
     enemies.push({
       id: `echo-fox-${normalizedLevel}-${cycle}-${index}`,
       x: Math.round(x),
-      y: groundY - 85,
+      y: archetype === 'bat' ? Math.round(groundY - 300 - random() * 170) : groundY - 85,
       patrol: 140 + Math.floor(random() * 200),
       rank,
       archetype,
@@ -366,6 +366,7 @@ export function generateEvolutionLayout({
     normalizedLevel >= 4 ? 'Phasing platforms' : null,
     normalizedLevel >= 5 ? 'Rare Echo Caches' : null,
     normalizedLevel >= 6 ? 'Infinite palette shift' : null,
+    normalizedLevel >= 10 ? 'Ice-Slide Penguins + Crumb-Snatch Bats' : null,
   ].filter(Boolean);
 
   return {

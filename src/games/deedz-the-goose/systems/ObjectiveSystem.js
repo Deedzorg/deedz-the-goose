@@ -7,7 +7,8 @@ export class ObjectiveSystem {
       collectibles: engine.save.get('progress.collectibles', 0),
     };
     this.unsubscribers = [
-      engine.events.on('collectible:collected', ({ item }) => {
+      engine.events.on('collectible:collected', ({ item, recovered = false }) => {
+        if (recovered) return;
         this.state.collectibles += 1;
         engine.save.set('progress.collectibles', this.state.collectibles);
         if (item.type === 'crumb' || item.type === 'echo-crumb') {

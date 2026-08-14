@@ -5,14 +5,13 @@ export const CONTROL_ACTIONS = Object.freeze([
   { id: 'down', label: 'Crouch-Walk / Menu Down', description: 'Hold down to crouch; move left or right to sneak.', keyboard: true, gamepad: false },
   { id: 'jump', label: 'Jump / Triple Flap', description: 'Jump three times; hold the third flap to glide.', keyboard: true, gamepad: true },
   { id: 'attack', label: 'Wing Whap', description: 'Close-range wing attack.', keyboard: true, gamepad: true },
-  { id: 'peck', label: 'Peck', description: 'Fast, precise short-range strike against the nearest foe.', keyboard: true, gamepad: true },
+  { id: 'peck', label: 'Power Peck', description: 'Lunge forward and hammer the nearest foe with a heavy beak strike.', keyboard: true, gamepad: true },
   { id: 'throw', label: 'Charge & Throw Crumb', description: 'Tap for a nearby toss or hold for a powerful long throw.', keyboard: true, gamepad: true },
   { id: 'honk', label: 'Honk', description: 'Knock back enemies, break shields, and activate crystals.', keyboard: true, gamepad: true },
   { id: 'dash', label: 'Dash', description: 'Burst forward through danger.', keyboard: true, gamepad: true },
-  { id: 'sense', label: 'Flock Sense', description: 'Hold to reveal nearby collectibles, crystals, foxes, and geese.', keyboard: true, gamepad: true },
+  { id: 'sense', label: 'Flock Sense', description: 'Hold to reveal nearby collectibles, crystals, enemies, and geese.', keyboard: true, gamepad: true },
   { id: 'interact', label: 'Interact / Wing-Bump', description: 'Interact or wing-bump a nearby goose.', keyboard: true, gamepad: true },
   { id: 'pause', label: 'Pause', description: 'Open Mission Control.', keyboard: true, gamepad: true },
-  { id: 'debug', label: 'Diagnostics', description: 'Toggle engine diagnostics.', keyboard: true, gamepad: false },
 ]);
 
 const KEY_NAMES = Object.freeze({

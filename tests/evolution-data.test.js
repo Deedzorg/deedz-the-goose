@@ -5,7 +5,7 @@ import {
   generateEvolutionLayout,
   stageForLevel,
 } from '../src/games/deedz-the-goose/data/evolutions.js';
-import { enemyArchetypesForLevel } from '../src/games/deedz-the-goose/data/enemies.js';
+import { enemyArchetypesForLevel, enemyDefinition } from '../src/games/deedz-the-goose/data/enemies.js';
 
 test('personal Echo Layers are deterministic and escalate forever', () => {
   const options = { level: 3, cycle: 2, seed: 424242, width: 9600, groundY: 920 };
@@ -30,8 +30,14 @@ test('Echo Layers introduce distinct enemy behaviors without removing earlier co
   assert.deepEqual(enemyArchetypesForLevel(1), ['charger', 'pouncer']);
   assert.deepEqual(enemyArchetypesForLevel(2), ['charger', 'pouncer', 'lobber']);
   assert.deepEqual(enemyArchetypesForLevel(3), ['charger', 'pouncer', 'lobber', 'brute']);
+  assert.deepEqual(enemyArchetypesForLevel(10), ['charger', 'pouncer', 'lobber', 'brute', 'penguin', 'bat']);
   const first = generateEvolutionLayout({ level: 1, cycle: 0, seed: 7 });
   const third = generateEvolutionLayout({ level: 3, cycle: 2, seed: 7 });
   assert.deepEqual(new Set(first.enemies.map((enemy) => enemy.archetype)), new Set(['charger', 'pouncer']));
   assert.deepEqual(new Set(third.enemies.map((enemy) => enemy.archetype)), new Set(['charger', 'pouncer', 'lobber', 'brute']));
+  const tenth = generateEvolutionLayout({ level: 10, cycle: 9, seed: 7 });
+  assert.ok(tenth.enemies.some((enemy) => enemy.archetype === 'penguin'));
+  assert.ok(tenth.enemies.some((enemy) => enemy.archetype === 'bat'));
+  assert.equal(enemyDefinition('bat').flying, true);
+  assert.equal(enemyDefinition('bat').stealsCrumbs, true);
 });

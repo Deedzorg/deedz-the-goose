@@ -15,3 +15,11 @@ test('world gate state never shadows the scene cleanup lifecycle', async () => {
   assert.match(adventure, /world\.levelExit\.setLocked/);
   world.destroy();
 });
+
+test('Escape has a dedicated pause-menu resume path outside remappable input', async () => {
+  const source = await readFile(new URL('../src/games/deedz-the-goose/scenes/PauseScene.js', import.meta.url), 'utf8');
+  assert.match(source, /event\.code !== 'Escape'/);
+  assert.match(source, /window\.addEventListener\('keydown', this\._onEscape/);
+  assert.match(source, /window\.removeEventListener\('keydown', this\._onEscape/);
+  assert.match(source, /#resumePause\(\)/);
+});

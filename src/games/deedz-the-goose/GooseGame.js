@@ -11,7 +11,9 @@ import { GooseClassSystem } from './systems/GooseClassSystem.js';
 import { AdventureProgressionSystem } from './systems/AdventureProgressionSystem.js';
 import { GameplayInputSystem } from './systems/GameplayInputSystem.js';
 import { BossGuidanceSystem } from './systems/BossGuidanceSystem.js';
-import { isGooseClassUnlocked, networkCharacterId } from './data/characters.js';
+import { gooseUnlockProgressFromSave, isGooseClassUnlocked, networkCharacterId } from './data/characters.js';
+import { GooseUnlockSystem } from './systems/GooseUnlockSystem.js';
+import { GooseTestLab } from './ui/GooseTestLab.js';
 
 export class GooseGame extends GameApp {
   createConfig() { return GooseConfig; }
@@ -29,6 +31,7 @@ export class GooseGame extends GameApp {
         bestTime: null,
         checkpoint: null,
         activatedCrystals: [],
+        debugUnlockAllGeese: false,
         records: { bestScore: 0, highestLayer: 1, mostCrumbs: 0, mostFoxes: 0 },
         evolution: { level: 1, xp: 0, cycle: 0, seed: 1337, bossWins: 0 },
       },
@@ -37,8 +40,8 @@ export class GooseGame extends GameApp {
   }
   networkProfile(engine) {
     const profile = engine.save.get('profile', {});
-    const evolutionLevel = Math.max(1, Number(engine.save.get('progress.evolution.level', 1)) || 1);
-    const character = isGooseClassUnlocked(profile.character || 'classic', evolutionLevel)
+    const unlockProgress = gooseUnlockProgressFromSave(engine.save);
+    const character = isGooseClassUnlocked(profile.character || 'classic', unlockProgress)
       ? profile.character || 'classic'
       : 'classic';
     return { name: String(profile.name || 'Anonymous Goose').slice(0, 24), character: networkCharacterId(character, profile.color || 'snow') };
@@ -55,6 +58,8 @@ export class GooseGame extends GameApp {
     this.adventureProgression = new AdventureProgressionSystem(engine);
     this.gameplayInput = new GameplayInputSystem(engine);
     this.bossGuidance = new BossGuidanceSystem(engine);
+    this.gooseUnlocks = new GooseUnlockSystem(engine);
+    this.testLab = new GooseTestLab(engine);
     engine.events.on('network:open', () => engine.ui.toast('Connected to Goose Lobby.', { type: 'success' }));
     engine.events.on('network:close', () => engine.ui.toast('Offline mode active.', { type: 'warning' }));
     engine.events.on('save:error', () => engine.ui.toast('Local storage is unavailable. Progress will last for this session only.', { type: 'warning', duration: 5000 }));
@@ -66,6 +71,8 @@ export class GooseGame extends GameApp {
     engine.audio.setVolumes({ master: settings.master ?? 0.75, music: settings.music === false ? 0 : (settings.musicVolume ?? 0.55), sfx: settings.sfx === false ? 0 : (settings.sfxVolume ?? 0.8) });
   }
   async shutdown() {
+    this.testLab?.destroy();
+    this.gooseUnlocks?.destroy();
     this.bossGuidance?.destroy();
     this.gameplayInput?.destroy();
     this.adventureProgression?.destroy();

@@ -59,8 +59,8 @@ export class WorldEvolutionSystem {
     this.#applyLayer({ announce: false });
     this.applySharedState(this.shared);
     this.unsubscribers = [
-      engine.events.on('collectible:collected', ({ item, definition = collectibleDefinition(item?.type) }) => {
-        if (!item) return;
+      engine.events.on('collectible:collected', ({ item, definition = collectibleDefinition(item?.type), recovered = false }) => {
+        if (!item || recovered) return;
         const xp = collectibleXpValue(item.type, item.value);
         this.addXp(xp, definition.label, { flockEnergy: Math.max(1, definition.flockEnergy * item.value) });
       }),
@@ -189,7 +189,7 @@ export class WorldEvolutionSystem {
     this.engine.events.emit('achievement:unlock', { id: 'world-evolved' });
     this.engine.network.sendAction('evolution', { x: this.scene.player.x, y: this.scene.player.y, strength: this.state.level });
     const mutations = this.lastLayout?.mutations?.length ? ` ${this.lastLayout.mutations.join(' · ')}.` : '';
-    this.engine.ui.toast(`${this.stage.name} has emerged! Echo Supply +${supply} crumbs. New routes, collectibles, foxes, and scenery now fill Goose Green.${mutations}`, { type: 'success', duration: 6200 });
+    this.engine.ui.toast(`${this.stage.name} has emerged! Echo Supply +${supply} crumbs. New routes, collectibles, enemies, and scenery now fill Goose Green.${mutations}`, { type: 'success', duration: 6200 });
     if (oldLevel < ADVANCED_GOOSE_UNLOCK_LEVEL && this.state.level >= ADVANCED_GOOSE_UNLOCK_LEVEL) {
       const names = advancedGooseUnlocks().map((item) => item.name).join(' + ');
       this.engine.ui.toast(`ADVANCED GEESE UNLOCKED! ${names} are now selectable from the main menu.`, { type: 'success', duration: 7000 });
@@ -261,7 +261,7 @@ export class WorldEvolutionSystem {
       enemy.addTag('evolution-generated');
       this.generated.push(enemy);
       this.engine.entities.addImmediate(enemy, this.scene.root);
-      this.engine.physics.addBody(enemy, { gravityScale: 1, maxSpeedY: 1350 });
+      this.engine.physics.addBody(enemy, { gravityScale: enemy.hasTag('flying-enemy') ? 0 : 1, maxSpeedY: 1350 });
       this.engine.physics.addCollider(enemy.collider);
     }
 

@@ -50,7 +50,7 @@ export class PauseScene extends Scene {
       </div>`;
 
     const actions = panel.querySelector('[data-actions]');
-    this.resume = new Button({ label: 'Resume', variant: 'primary', onClick: () => this.engine.scenes.pop() });
+    this.resume = new Button({ label: 'Resume', variant: 'primary', onClick: () => this.#resumePause() });
     this.restart = new Button({ label: 'Restart Mission', onClick: () => this.#leavePause('world', { restartMission: true }) });
     this.menu = new Button({ label: 'Main Menu', onClick: () => this.#leavePause('main-menu', { fromPause: true }) });
     actions.append(this.resume.element, this.restart.element, this.menu.element);
@@ -79,8 +79,24 @@ export class PauseScene extends Scene {
     this.screen.element.appendChild(panel);
     this.engine.ui.register(this.screen);
     this.engine.ui.show(this.screen.id);
+    this._onEscape = (event) => {
+      if (event.code !== 'Escape' || event.repeat || this.controls?.capture) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.#resumePause();
+    };
+    window.addEventListener('keydown', this._onEscape, { capture: true });
     this.resume.focus({ preventScroll: true });
     this.screen.element.scrollTop = 0;
+  }
+
+  #resumePause() {
+    if (this.leaving || this.engine.scenes.transitioning) return;
+    this.leaving = true;
+    this.engine.scenes.pop().catch((error) => {
+      this.leaving = false;
+      this.engine.ui.toast(`Could not resume: ${error?.message ?? 'unknown error'}`, { type: 'danger' });
+    });
   }
 
   async #leavePause(sceneId, data = {}) {
@@ -232,7 +248,7 @@ export class PauseScene extends Scene {
 
     const input = this.engine.input;
     if (menuStartPressed(input) || menuBackPressed(input)) {
-      this.engine.scenes.pop();
+      this.#resumePause();
       return;
     }
     const tabDirection = menuTabDirection(input);
@@ -249,6 +265,7 @@ export class PauseScene extends Scene {
   }
 
   async exit() {
+    window.removeEventListener('keydown', this._onEscape, { capture: true });
     this.controls?.destroy();
     if (!this.leaving) this.engine.input.setEnabled(true);
     this.engine.ui.remove(this.screen?.id);

@@ -1,7 +1,6 @@
 export const MENU_GAMEPAD = Object.freeze({
   select: 0,
   back: 1,
-  alternateSelect: 3,
   tabPrevious: 4,
   tabNext: 5,
   menu: 9,
@@ -75,9 +74,7 @@ export function menuTabDirection(input) {
 export function menuSelectPressed(input) {
   return Boolean(
     input?.wasPressed?.('jump')
-    || input?.wasPressed?.('interact')
     || gamepadPressed(input, MENU_GAMEPAD.select)
-    || gamepadPressed(input, MENU_GAMEPAD.alternateSelect)
   );
 }
 

@@ -17,7 +17,7 @@ export function progressionDirective({ activeCrystals = 0, requiredCrystals = 3,
     return { phase: 'crystals', title: `NEXT · AWAKEN ECHO CRYSTALS ${activeCrystals}/${requiredCrystals}`, detail: 'Hold Flock Sense (LT / Q) to find them, then HONK nearby', next };
   }
   if (xp < xpGoal) {
-    return { phase: 'xp', title: `NEXT · CHARGE ECHO LAYER ${level}`, detail: `${Math.max(0, xpGoal - xp)} XP to go · collect, defeat foxes, and activate resonators · Boss Charge ${flockEnergy}/${flockGoal}`, next };
+    return { phase: 'xp', title: `NEXT · CHARGE ECHO LAYER ${level}`, detail: `${Math.max(0, xpGoal - xp)} XP to go · collect, defeat enemies, and activate resonators · Boss Charge ${flockEnergy}/${flockGoal}`, next };
   }
   if (bossRequired) {
     return { phase: 'summon', title: 'NEXT · SUMMON BARON BREADSTORM', detail: `Boss Charge ${flockEnergy}/${flockGoal} · he will invade ${BREADSTORM_ENCOUNTER.zone}, near the center`, next };

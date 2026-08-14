@@ -5,6 +5,7 @@ import {
   advancedGooseUnlocks,
   gooseClasses,
   gooseColors,
+  gooseUnlockStatus,
   isGooseClassUnlocked,
   networkCharacterId,
   resolveCharacter,
@@ -23,6 +24,7 @@ function direction(key, value) {
 
 test('specialist goose classes have both a buff and a debuff', () => {
   assert.equal(gooseClasses.length, 8);
+  assert.deepEqual(gooseClasses.map((item) => item.name), ['Silly Goose', 'Happy Happy Goose', 'Crumb Goose', 'Curvy Goose', 'Sweet Goose', 'Bad Bad Goose', 'Fun Size Goose', 'Ember Goose']);
   assert.deepEqual(gooseClasses[0].ratings, { health: 3, speed: 3, honk: 3, throw: 3, flight: 3 });
   assert.equal(Object.values(gooseClasses[0].ratings).reduce((sum, value) => sum + value, 0), 15);
   for (const gooseClass of gooseClasses.slice(1)) {
@@ -49,14 +51,35 @@ test('class and goose color are independent and network-safe', () => {
   assert.equal(remote.plumageId, 'rose');
 });
 
-test('Guardian and Ember are visible progression rewards unlocked at Echo 10', () => {
+test('three starter geese are free and every specialist has a distinct saved-progress challenge', () => {
   assert.equal(ADVANCED_GOOSE_UNLOCK_LEVEL, 10);
-  assert.deepEqual(advancedGooseUnlocks().map((item) => item.id), ['guardian', 'firebrand']);
-  assert.equal(isGooseClassUnlocked('classic', 1), true);
-  assert.equal(isGooseClassUnlocked('guardian', 9), false);
-  assert.equal(isGooseClassUnlocked('firebrand', 9), false);
-  assert.equal(isGooseClassUnlocked('guardian', 10), true);
-  assert.equal(isGooseClassUnlocked('firebrand', 10), true);
+  assert.deepEqual(advancedGooseUnlocks().map((item) => item.id), ['guardian']);
+  const fresh = { level: 1, crumbs: 0, enemies: 0, crystals: 0, bossWins: 0 };
+  assert.deepEqual(gooseClasses.filter((item) => isGooseClassUnlocked(item, fresh)).map((item) => item.id), ['classic', 'echo', 'ranger']);
+  assert.equal(isGooseClassUnlocked('skywing', { ...fresh, crumbs: 50 }), true);
+  assert.equal(isGooseClassUnlocked('swift', { ...fresh, enemies: 20 }), true);
+  assert.equal(isGooseClassUnlocked('spring', { ...fresh, activatedCrystals: ['one', 'two', 'three'] }), true);
+  assert.equal(isGooseClassUnlocked('firebrand', { ...fresh, bossWins: 1 }), true);
+  assert.equal(isGooseClassUnlocked('guardian', { ...fresh, level: 9 }), false);
+  assert.equal(isGooseClassUnlocked('guardian', { ...fresh, level: 10 }), true);
+  assert.equal(isGooseClassUnlocked('guardian', { ...fresh, debugUnlockAllGeese: true }), true);
+  assert.equal(isGooseClassUnlocked('adaboss', 10), false);
+  assert.deepEqual(
+    gooseClasses.filter((item) => item.unlockChallenge).map((item) => item.unlockChallenge.type).sort(),
+    ['bossWins', 'crumbs', 'crystals', 'enemies', 'level'],
+  );
+  assert.deepEqual(gooseUnlockStatus('skywing', { ...fresh, crumbs: 12 }), {
+    unlocked: false, current: 12, target: 50, label: 'Collect 50 crumbs',
+  });
+  assert.ok(gooseClasses.find((item) => item.id === 'guardian').presentation.bodyWidth > 1.2);
+  assert.ok(gooseClasses.find((item) => item.id === 'spring').presentation.bodyWidth < 0.9);
+});
+
+test('every goose has a unique silhouette and signature detail', () => {
+  const details = gooseClasses.map((item) => item.presentation?.detail);
+  const silhouettes = gooseClasses.map((item) => `${item.presentation?.bodyWidth}:${item.presentation?.bodyHeight}:${item.presentation?.headScale}`);
+  assert.equal(new Set(details).size, gooseClasses.length);
+  assert.equal(new Set(silhouettes).size, gooseClasses.length);
 });
 
 test('class systems apply advertised modifiers including Ember Fire Feather', async () => {

@@ -10,7 +10,7 @@ import {
   breadstormStats,
 } from '../server/shared/bossBalance.js';
 import { BREADSTORM_ENCOUNTER, bossTargetForLevel } from '../src/games/deedz-the-goose/data/progression.js';
-import { foxCrumbDropCount, isStompLanding, PECK_PROFILE, WING_WHAP_PROFILE } from '../src/games/deedz-the-goose/data/combat.js';
+import { foxCrumbDropCount, isStompLanding, PECK_PROFILE, recoverableCrumbLoss, WING_WHAP_PROFILE } from '../src/games/deedz-the-goose/data/combat.js';
 import { CombatSystem } from '../src/games/deedz-the-goose/systems/CombatSystem.js';
 import { ContactDamageSystem } from '../src/games/deedz-the-goose/systems/ContactDamageSystem.js';
 import { RemoteGoose } from '../src/games/deedz-the-goose/entities/RemoteGoose.js';
@@ -49,28 +49,39 @@ function enemy(x, y = 0) {
   };
 }
 
-test('Peck is fast single-target precision while Wing Whap remains the wider cleave', () => {
+test('Power Peck is a heavy single-target lunge while Wing Whap remains the wider cleave', () => {
   const close = enemy(52);
   const second = enemy(70);
   const wideOnly = enemy(108);
+  close.hp = 6;
+  second.hp = 6;
+  wideOnly.hp = 6;
   const { engine, combat } = combatHarness([close, second, wideOnly]);
   const player = { x: 0, y: 0, facing: 1 };
 
   engine.events.emit('goose:peck', { player });
-  assert.equal(close.hp, 2);
-  assert.equal(second.hp, 3);
-  assert.equal(wideOnly.hp, 3);
+  assert.equal(close.hp, 3);
+  assert.equal(second.hp, 6);
+  assert.equal(wideOnly.hp, 6);
   assert.equal(close.velocity.x, PECK_PROFILE.knockback);
 
   engine.events.emit('goose:attack', { player });
-  assert.equal(close.hp, 1);
-  assert.equal(second.hp, 2);
-  assert.equal(wideOnly.hp, 2);
-  assert.ok(PECK_PROFILE.range >= 96, 'Peck should comfortably reach a nearby enemy');
-  assert.ok(PECK_PROFILE.range < WING_WHAP_PROFILE.range, 'Wing Whap should retain the wider reach');
-  assert.ok(PECK_PROFILE.knockback < WING_WHAP_PROFILE.knockback, 'Wing Whap should retain the stronger crowd-control knockback');
-  assert.ok(PECK_PROFILE.cooldown < WING_WHAP_PROFILE.cooldown, 'Peck should recover faster');
+  assert.equal(close.hp, 2);
+  assert.equal(second.hp, 5);
+  assert.equal(wideOnly.hp, 5);
+  assert.ok(PECK_PROFILE.range >= 128, 'Power Peck should comfortably reach through its forward lunge');
+  assert.ok(PECK_PROFILE.damage > 2, 'Power Peck must hit harder than a fully charged crumb');
+  assert.ok(PECK_PROFILE.knockback > WING_WHAP_PROFILE.knockback, 'Power Peck should deliver the stronger single-target knockback');
+  assert.ok(PECK_PROFILE.groundLunge >= 650, 'Power Peck should feel like a short dash');
   combat.destroy();
+});
+
+test('Crumb-Snatch losses stay small, recoverable, and never empty the player', () => {
+  assert.equal(recoverableCrumbLoss(0), 0);
+  assert.equal(recoverableCrumbLoss(1), 0);
+  assert.equal(recoverableCrumbLoss(2), 1);
+  assert.equal(recoverableCrumbLoss(8), 2);
+  assert.equal(recoverableCrumbLoss(40), 3);
 });
 
 test('Breadstorm starts friendly, then evolves shields without losing later challenge', () => {
@@ -152,6 +163,33 @@ test('contact combat routes stomps and water falls through shared fox defeat eve
   events.emit('collision:enter', { a: { entity: wanderingFox }, b: { entity: water } });
   assert.equal(wanderingFox.defeated, false, 'a fox should not award a free victory for wandering into danger');
   assert.equal(wanderingFox.reset, true);
+  system.destroy();
+});
+
+test('a bat steals crumbs only after its contact attack actually deals damage', () => {
+  const events = new EventBus();
+  const engine = { events, network: { sendWorldEvent() {} } };
+  const tags = (wanted) => ({ hasTag(tag) { return wanted.includes(tag); } });
+  let canDamage = true;
+  let steals = 0;
+  const player = {
+    ...tags(['player']), velocity: { y: 0 }, previousPosition: { y: 0 }, y: 0,
+    takeDamage() { return canDamage; },
+  };
+  const bat = {
+    ...tags(['enemy']), defeated: false,
+    onPlayerHit() { steals += 1; },
+  };
+  const contact = {
+    a: { entity: player, offset: { y: -4 }, height: 48, bottom: 20, centerY: 0 },
+    b: { entity: bat, top: -20, centerY: 0 },
+  };
+  const system = new ContactDamageSystem(engine);
+  events.emit('collision:stay', contact);
+  assert.equal(steals, 1);
+  canDamage = false;
+  events.emit('collision:stay', contact);
+  assert.equal(steals, 1);
   system.destroy();
 });
 

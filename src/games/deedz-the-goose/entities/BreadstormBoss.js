@@ -5,8 +5,8 @@ import { distance, signNonZero } from '../../../shared/math.js';
 import { HonkPulse, WingBurst } from './ActionEffects.js';
 
 class BreadBomb extends Entity {
-  constructor({ x = 0, y = 0, targetX = x, targetY = y, phase = 1 } = {}) {
-    super({ name: 'BreadBomb', tags: ['boss-projectile', 'hazard'] });
+  constructor({ x = 0, y = 0, targetX = x, targetY = y, phase = 1, labSpawn = false } = {}) {
+    super({ name: 'BreadBomb', tags: ['boss-projectile', 'hazard', ...(labSpawn ? ['goose-lab-spawn'] : [])] });
     this.x = x;
     this.y = y;
     this.life = 0;
@@ -46,8 +46,10 @@ class BreadBomb extends Entity {
 }
 
 export class BreadstormBoss extends Entity {
-  constructor({ state = {}, x = 8800, y = 770 } = {}) {
-    super({ id: 'boss-baron-breadstorm', name: 'Baron Breadstorm', tags: ['boss', 'enemy', 'damageable', 'fox'] });
+  constructor({ state = {}, x = 8800, y = 770, entityId = 'boss-baron-breadstorm', bossId = 'baron-breadstorm', hitHandler = null } = {}) {
+    super({ id: entityId, name: 'Baron Breadstorm', tags: ['boss', 'enemy', 'damageable', 'fox'] });
+    this.bossId = bossId;
+    this.hitHandler = hitHandler;
     this.x = x;
     this.y = y;
     this.spawn = { x, y };
@@ -144,12 +146,13 @@ export class BreadstormBoss extends Entity {
     if (!this.activeFight || this.invulnerable > 0) return false;
     this.invulnerable = 0.08;
     const payload = {
-      bossId: 'baron-breadstorm',
+      bossId: this.bossId,
       damage: Math.max(1, Math.min(8, Number(damage) || 1)),
       hitType: kind,
       x: source?.x ?? 0,
       y: source?.y ?? 0,
     };
+    if (this.hitHandler) return this.hitHandler(payload, this, engine) !== false;
     const sent = engine.network.sendWorldEvent('boss-hit', payload);
     if (!sent) engine.events.emit('boss:hit-request', payload);
     return true;
@@ -213,6 +216,7 @@ export class BreadstormBoss extends Entity {
           targetX: player.x + (index - (bombCount - 1) / 2) * 105,
           targetY: player.y,
           phase: this.phase,
+          labSpawn: Boolean(this.hitHandler),
         }), this.display.parent);
       }
       this.attackTimer = attackTier === 1 ? 2 : this.phase === 3 ? 1.15 : 1.55;

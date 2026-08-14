@@ -172,6 +172,10 @@ export class ControlsSettingsPanel {
       this.#cancelCapture();
       return;
     }
+    if (event.code === 'F3') {
+      this.status.textContent = 'That key is reserved. Press another key or Escape to cancel.';
+      return;
+    }
     this.#commitBinding({ type: 'key', code: event.code });
   }
 

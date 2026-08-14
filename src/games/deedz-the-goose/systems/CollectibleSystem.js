@@ -25,7 +25,7 @@ export class CollectibleSystem {
         engine.events.emit('player:jump-refill', { player, item });
       }
 
-      engine.events.emit('collectible:collected', { item, player, definition });
+      engine.events.emit('collectible:collected', { item, player, definition, recovered: item.hasTag?.('recoverable-crumb') });
       if (engine.save.get('settings.sfx', true)) {
         const frequency = item.type === 'echo-cache' ? 380 : item.type === 'flock-star' ? 760 : 620;
         engine.audio.sfx.tone({ frequency, slide: item.type === 'heart' ? -90 : 160, duration: item.type === 'echo-cache' ? 0.18 : 0.08, type: 'sine', volume: 0.06 });

@@ -69,7 +69,7 @@ Touch-capable devices receive on-screen controls automatically when no controlle
 
 The compact phone layout keeps the six core actions visible: **Flap, Wing Whap, Peck, Crumb, Honk, and Dash**. Flock Sense and Wing-Bump remain available on keyboard/controller. Starting from a touch device requests browser fullscreen, and the installable web-app manifest provides a browser-free landscape view when the game is added to a Home Screen.
 
-The default controller layout uses **RB for Flap**, **RT for Dash**, **A for Wing Whap**, and **Y for Peck**, while **LT remains Flock Sense**. Hold Flock Sense to reveal nearby collectibles, Echo Crystals, Resonators, Bread Foxes, checkpoints, bosses, and connected geese.
+The default controller layout uses **A for Jump / Triple Flap**, **RB for Power Peck**, **Y for Wing Whap**, and **RT for Dash**, while **LT remains Flock Sense**. Keyboard defaults use **R for Honk**, **E for Power Peck**, and **F for Wing-Bump**. Hold Flock Sense to reveal nearby collectibles, Echo Crystals, Resonators, enemies, checkpoints, bosses, and connected geese.
 
 ### Cleaner interface
 
@@ -152,7 +152,7 @@ The wide close-range attack remains available through `J` or controller A by def
 
 ### Peck
 
-Press `K` or controller Y for a quick, precise beak strike. Peck now has a more forgiving reach, lunge, and hit reaction. It still has less range and knockback than Wing Whap and only hits the nearest target, but it recovers faster.
+Press `E` or controller RB for Power Peck. It dashes toward the nearest forward target, deals three damage—more than a Power Crumb—and delivers heavy knockback. Two clean pecks defeat most ordinary enemies, while guards and captains remain sturdier.
 
 ### Throwable crumbs
 
@@ -226,14 +226,14 @@ The default controls are:
 |---|---|---|
 | Move | `A/D`, arrows | Left stick |
 | Crouch-walk / descend | `S`, down arrow | Left stick down |
-| Triple jump / glide | `Space` | Right bumper |
-| Wing Whap | `J` | A |
-| Peck | `K` | Y |
+| Triple jump / glide | `Space` | A |
+| Wing Whap | `J` | Y |
+| Power Peck | `E` | Right bumper |
 | Charge and throw crumb | Tap/hold `X` | Tap/hold X |
-| Honk | `H` | B |
+| Honk | `R` | B |
 | Dash | `Left Shift` | Right trigger |
 | Flock Sense | `Q` | Left trigger |
-| Wing-bump / interact | `E` | Left bumper |
+| Wing-bump / interact | `F` | Left bumper |
 | Pause / Mission Control | `Escape` | Menu |
 | Diagnostics | `F3` | Unbound |
 
@@ -258,7 +258,9 @@ Echo Layer 1 is a welcoming exploration run: awaken the crystals, fill Echo XP, 
 
 Jumping squarely onto a Bread Fox instantly defeats it and bounces the goose upward. Foxes also lose when knocked into water or an open fall. Each defeated fox scatters two to four collectible bread crumbs based on its rank.
 
-Guardian Goose and Ember Goose remain visible in the class picker but begin locked. Reaching Echo Layer 10 permanently makes both advanced choices available through the player's saved progression.
+The roster contains Silly Goose, Happy Happy Goose, Crumb Goose, Curvy Goose, Sweet Goose, Bad Bad Goose, Fun Size Goose, and Ember Goose. Silly, Happy Happy, and Crumb are available from the start. Sweet unlocks after collecting 50 crumbs, Bad Bad after defeating 20 enemies, Fun Size after awakening 3 Echo Crystals, Ember after the first Breadstorm victory, and Curvy at Echo Layer 10. Every play style has its own silhouette and signature detail while preserving the same fair stat budget as every specialist. The main menu shows progress on every locked-goose challenge, offers a random goose-name button, and gives the highest-scoring local or connected player the `Top Goose` honor.
+
+Echo Layer 10 introduces Ice-Slide Penguins and flying Crumb-Snatch Bats. A bat must connect with its swoop before it can knock loose up to three throwable crumbs. The crumbs fall out of Deedz and remain collectible, while at least one carried crumb is always protected.
 
 ### Shared Flock Crisis
 

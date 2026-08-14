@@ -97,3 +97,34 @@ export class Collectible extends Entity {
     if (['moon-token', 'flock-star', 'prism-seed'].includes(this.type)) this.graphic.rotation += dt * 0.8;
   }
 }
+
+export class RecoverableCrumb extends Collectible {
+  constructor({ id, x = 0, y = 0, landingY = y + 120, velocityX = 0, velocityY = -360 } = {}) {
+    super({ id, type: 'crumb', x, y, value: 1 });
+    this.addTag('recoverable-crumb');
+    this.landingY = Math.max(y + 24, Number(landingY) || y + 120);
+    this.velocity.x = Number(velocityX) || 0;
+    this.velocity.y = Number(velocityY) || -360;
+    this.dropGravity = 1120;
+    this.pickupDelay = 0.32;
+    this.landed = false;
+    this.collider.enabled = false;
+  }
+
+  fixedUpdate(dt, engine) {
+    super.fixedUpdate(dt, engine);
+    this.pickupDelay = Math.max(0, this.pickupDelay - dt);
+    if (this.pickupDelay <= 0 && this.available) this.collider.enabled = true;
+    if (this.landed) return;
+    this.velocity.y += this.dropGravity * dt;
+    this.x += this.velocity.x * dt;
+    this.y += this.velocity.y * dt;
+    this.display.rotation += dt * 6;
+    if (this.y < this.landingY) return;
+    this.y = this.landingY;
+    this.velocity.x = 0;
+    this.velocity.y = 0;
+    this.display.rotation = 0;
+    this.landed = true;
+  }
+}

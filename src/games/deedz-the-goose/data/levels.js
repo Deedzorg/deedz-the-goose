@@ -110,11 +110,11 @@ export const levels = Object.freeze([
     ],
     story: [
       { x: 360, text: 'Goose Green is awake—and the Bread Foxes stole the three Echo Crystals.' },
-      { x: 1120, text: 'Press H / B to HONK. Echo Crystals remember every honk in the shared flock.' },
+      { x: 1120, text: 'Press R / B to HONK. Echo Crystals remember every honk in the shared flock.' },
       { x: 1720, text: 'Triple-jump! The third flap briefly lightens gravity so you can sail through the sky.' },
       { x: 3000, text: 'The Whispering Ruins hide moving paths, fox patrols, and forgotten crumb trails.' },
       { x: 4230, text: 'Moonwater Ravine rewards height. Hold jump after the third flap to glide farther.' },
-      { x: 5580, text: 'Another goose nearby? Press E / Y for a wing-bump—and try honking them airborne.' },
+      { x: 5580, text: 'Press E / RB for a POWER PECK. Press F / LB to wing-bump a nearby goose.' },
       { x: 6820, text: 'Bread Fox Pass is guarded. Foxes now chase, wind up, charge, and recover.' },
       { x: 8040, text: 'Foxfire Fortress opens after the crystals awaken and your personal Echo Layer is ready to evolve.' },
       { x: 8750, text: 'Every crumb, fox, crystal, and wing-bump feeds the shared Flock Energy meter. When it fills, Baron Breadstorm attacks.' },

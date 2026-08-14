@@ -29,9 +29,11 @@ test('mobile controls auto-hide for controller players but can be forced', () =>
   assert.equal(shouldShowTouchControls({ mode: 'off', touchCapable: true, gamepadConnected: false, worldActive: true }), false);
 });
 
-test('LT remains Flock Sense while RB flaps and RT dashes', () => {
+test('A jumps, RB pecks, Y whaps, LT senses, and RT dashes', () => {
   const controls = cloneDefaultInputBindings();
-  assert.ok(controls.jump.some((binding) => binding.type === 'gamepad-button' && binding.button === 5));
+  assert.ok(controls.jump.some((binding) => binding.type === 'gamepad-button' && binding.button === 0));
+  assert.ok(controls.peck.some((binding) => binding.type === 'gamepad-button' && binding.button === 5));
+  assert.ok(controls.attack.some((binding) => binding.type === 'gamepad-button' && binding.button === 3));
   assert.ok(controls.dash.some((binding) => binding.type === 'gamepad-button' && binding.button === 7));
   assert.ok(controls.sense.some((binding) => binding.type === 'gamepad-button' && binding.button === 6));
 });

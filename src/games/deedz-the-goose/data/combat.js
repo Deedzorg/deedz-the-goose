@@ -1,12 +1,20 @@
 export const PECK_PROFILE = Object.freeze({
-  range: 96,
-  damage: 1,
-  knockback: 285,
-  knockbackY: -150,
-  cooldown: 0.2,
-  groundLunge: 118,
-  airLunge: 60,
+  range: 132,
+  damage: 3,
+  knockback: 560,
+  knockbackY: -230,
+  cooldown: 0.3,
+  groundLunge: 690,
+  airLunge: 510,
+  dashTime: 0.13,
 });
+
+export function recoverableCrumbLoss(ammo = 0, maximum = 3) {
+  const available = Math.max(0, Math.floor(Number(ammo) || 0));
+  if (available <= 1) return 0;
+  const requested = Math.max(1, Math.ceil(available * 0.25));
+  return Math.min(Math.max(1, Math.floor(Number(maximum) || 1)), requested, available - 1);
+}
 
 export const WING_WHAP_PROFILE = Object.freeze({
   range: 116,

@@ -62,7 +62,7 @@ export class Diagnostics {
       ] : []),
       `Renderer     ${this.engine.renderer.width} × ${this.engine.renderer.height}`, 
       '',
-      'F3 toggles diagnostics',
+      'F3 toggles Goose Lab + diagnostics',
     ].join('\n');
   }
 

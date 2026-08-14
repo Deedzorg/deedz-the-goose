@@ -3,19 +3,41 @@ import { Scene } from '../../../engine/scenes/Scene.js';
 import { Screen } from '../../../engine/ui/Screen.js';
 import { Button } from '../../../engine/ui/Button.js';
 import {
-  ADVANCED_GOOSE_UNLOCK_LEVEL,
   gooseClasses,
   gooseColors,
+  gooseUnlockProgressFromSave,
+  gooseUnlockStatus,
   isGooseClassUnlocked,
   networkCharacterId,
   setActiveGooseColor,
 } from '../data/characters.js';
 import { createMenuRepeatState, menuRepeatDirection, menuSelectPressed, menuStartPressed } from '../data/menuNavigation.js';
+import { randomGooseName, topGoose } from '../data/menuExtras.js';
 import { enterMobileFullscreen } from '../data/mobileDisplay.js';
 
 function pips(value = 3) {
   const count = Math.max(1, Math.min(5, Number(value) || 1));
   return `${'●'.repeat(count)}${'○'.repeat(5 - count)}`;
+}
+
+const PRESENTATION_MARKS = Object.freeze({
+  tuft: '〽',
+  smile: '◡',
+  crumb: '▦',
+  curves: '≈',
+  heart: '♥',
+  scowl: '⌁',
+  spark: '✦',
+  ember: '◆',
+});
+
+function presentationMark(character) {
+  return PRESENTATION_MARKS[character?.presentation?.detail] ?? '•';
+}
+
+function presentationVariables(character) {
+  const presentation = character?.presentation ?? {};
+  return `--goose-body-width:${presentation.bodyWidth ?? 1};--goose-body-height:${presentation.bodyHeight ?? 1};--goose-head-scale:${presentation.headScale ?? 1}`;
 }
 
 function isVisible(element) {
@@ -48,13 +70,19 @@ export class MainMenuScene extends Scene {
           <div class="deedz-kicker">DEEDZ ENGINE ${this.engine.config.engine.version}</div>
           <h1 class="deedz-title">DEEDZ<br>THE GOOSE</h1>
         </div>
-        <div class="deedz-controller-pill" data-controller-status>Keyboard ready · connect a controller anytime</div>
+        <div class="deedz-menu-honors">
+          <div class="deedz-top-goose" data-top-goose aria-live="polite">Top Goose: Deedz</div>
+          <div class="deedz-controller-pill" data-controller-status>Keyboard ready · connect a controller anytime</div>
+        </div>
       </div>
       <p class="deedz-subtitle">Pick a play style, choose your goose color, and enter the living shared world.</p>
       <p class="deedz-mobile-fullscreen-tip">Phone play enters full screen when you start. Add the game to your Home Screen for the cleanest browser-free view.</p>
       <p class="deedz-menu-hint">Controller: ↑/↓ moves through sections · ←/→ moves within a choice row · A selects · Menu starts</p>
 
-      <label class="deedz-field deedz-name-field">Goose name<input data-name maxlength="24" autocomplete="nickname"></label>
+      <div class="deedz-name-row">
+        <label class="deedz-field deedz-name-field">Goose name<input data-name maxlength="24" autocomplete="nickname"></label>
+        <button type="button" class="deedz-random-name" data-random-name aria-label="Generate a random goose name">&#127922; Random Name</button>
+      </div>
 
       <div class="deedz-section-title">1 · Play Style</div>
       <div class="deedz-loadout-grid">
@@ -70,10 +98,9 @@ export class MainMenuScene extends Scene {
       <div class="deedz-progress-line" data-progress></div>
       <div class="deedz-actions deedz-launch-actions" data-actions></div>`;
 
-    const evolution = this.engine.save.get('progress.evolution', { level: 1, xp: 0, bossWins: 0 });
-    const evolutionLevel = Math.max(1, Number(evolution.level) || 1);
+    const unlockProgress = gooseUnlockProgressFromSave(this.engine.save);
     const savedClass = this.engine.save.get('profile.character', 'classic');
-    if (!gooseClasses.some((item) => item.id === savedClass) || !isGooseClassUnlocked(savedClass, evolutionLevel)) {
+    if (!gooseClasses.some((item) => item.id === savedClass) || !isGooseClassUnlocked(savedClass, unlockProgress)) {
       this.engine.save.set('profile.character', 'classic');
     }
     const savedColor = this.engine.save.get('profile.color', 'snow');
@@ -81,8 +108,14 @@ export class MainMenuScene extends Scene {
     setActiveGooseColor(this.engine.save.get('profile.color', 'snow'));
 
     const nameInput = panel.querySelector('[data-name]');
+    this.nameInput = nameInput;
     nameInput.value = this.engine.save.get('profile.name', 'Deedz');
     nameInput.addEventListener('change', () => this.#saveProfile(nameInput.value));
+    panel.querySelector('[data-random-name]').addEventListener('click', () => {
+      nameInput.value = randomGooseName();
+      this.#saveProfile(nameInput.value);
+      this.engine.ui.toast(`${nameInput.value} is ready to honk!`, { type: 'success', duration: 2200 });
+    });
 
     const classList = panel.querySelector('[data-classes]');
     this.characterButtons = [];
@@ -91,16 +124,17 @@ export class MainMenuScene extends Scene {
       button.type = 'button';
       button.className = 'deedz-class-card';
       button.dataset.character = character.id;
-      const locked = !isGooseClassUnlocked(character, evolutionLevel);
+      const unlock = gooseUnlockStatus(character, unlockProgress);
+      const locked = !unlock.unlocked;
       button.classList.toggle('is-locked', locked);
       button.dataset.locked = String(locked);
       button.innerHTML = `
-        <span class="deedz-class-card__mark" style="--class-color:#${character.themeColor.toString(16).padStart(6, '0')}"></span>
-        <span><strong>${character.name}</strong><small data-class-status>${locked ? `Locked · Reach Echo ${character.unlockLevel}` : character.ability}</small></span>`;
+        <span class="deedz-class-card__mark" data-mark="${presentationMark(character)}" style="--class-color:#${character.themeColor.toString(16).padStart(6, '0')};${presentationVariables(character)}"></span>
+        <span><strong>${character.name}</strong><small data-class-status>${locked ? `Locked · ${unlock.label} (${unlock.current}/${unlock.target})` : character.ability}</small></span>`;
       button.addEventListener('click', () => {
-        const currentLevel = Math.max(1, Number(this.engine.save.get('progress.evolution.level', 1)) || 1);
-        if (!isGooseClassUnlocked(character, currentLevel)) {
-          this.engine.ui.toast(`${character.name} unlocks at Echo Layer ${character.unlockLevel}.`, { type: 'warning', duration: 2400 });
+        const currentUnlock = gooseUnlockStatus(character, this.#unlockProgress());
+        if (!currentUnlock.unlocked) {
+          this.engine.ui.toast(`Unlock ${character.name}: ${currentUnlock.label}. Progress ${currentUnlock.current}/${currentUnlock.target}.`, { type: 'warning', duration: 3200 });
           return;
         }
         this.engine.save.set('profile.character', character.id);
@@ -159,6 +193,7 @@ export class MainMenuScene extends Scene {
         setActiveGooseColor('snow');
         this.#refreshSelection();
         this.#refreshProgressLine();
+        this.#refreshTopGoose();
         this.engine.ui.toast('Local progress reset.', { type: 'warning' });
       },
     });
@@ -168,10 +203,12 @@ export class MainMenuScene extends Scene {
     this.classDetail = panel.querySelector('[data-class-detail]');
     this.selectionSummary = panel.querySelector('[data-selection-summary]');
     this.controllerStatus = panel.querySelector('[data-controller-status]');
+    this.topGooseHonor = panel.querySelector('[data-top-goose]');
     this.screen.element.appendChild(panel);
     this.engine.ui.register(this.screen);
     this.engine.ui.show(this.screen.id);
     this.#refreshSelection();
+    this.#refreshTopGoose();
     this.#refreshControllerStatus(this.engine.input.gamepad.info);
     this.play.focus({ preventScroll: true });
     this.screen.element.scrollTop = 0;
@@ -179,6 +216,11 @@ export class MainMenuScene extends Scene {
     this.unsubscribers.push(
       this.engine.events.on('gamepad:connected', (info) => this.#refreshControllerStatus(info)),
       this.engine.events.on('gamepad:disconnected', () => this.#refreshControllerStatus(null)),
+      this.engine.events.on('net:joined', () => this.#refreshTopGoose()),
+      this.engine.events.on('net:peer-join', () => this.#refreshTopGoose()),
+      this.engine.events.on('net:peer-leave', () => this.#refreshTopGoose()),
+      this.engine.events.on('net:state', () => this.#refreshTopGoose()),
+      this.engine.events.on('goose:unlocked', () => { this.#refreshSelection(); this.#refreshProgressLine(); }),
     );
 
     if (this.engine.save.get('settings.music', true)) this.engine.audio.music.playToneBed({ root: 82 });
@@ -194,10 +236,14 @@ export class MainMenuScene extends Scene {
     return gooseColors.find((item) => item.id === id) ?? gooseColors[0];
   }
 
+  #unlockProgress() {
+    return gooseUnlockProgressFromSave(this.engine.save);
+  }
+
   #refreshSelection() {
-    const evolutionLevel = Math.max(1, Number(this.engine.save.get('progress.evolution.level', 1)) || 1);
+    const unlockProgress = this.#unlockProgress();
     let character = this.#selectedClass();
-    if (!isGooseClassUnlocked(character, evolutionLevel)) {
+    if (!isGooseClassUnlocked(character, unlockProgress)) {
       this.engine.save.set('profile.character', 'classic');
       character = this.#selectedClass();
     }
@@ -206,12 +252,13 @@ export class MainMenuScene extends Scene {
 
     for (const button of this.characterButtons ?? []) {
       const definition = gooseClasses.find((item) => item.id === button.dataset.character);
-      const locked = !isGooseClassUnlocked(definition, evolutionLevel);
+      const unlock = gooseUnlockStatus(definition, unlockProgress);
+      const locked = !unlock.unlocked;
       button.classList.toggle('is-locked', locked);
       button.dataset.locked = String(locked);
       button.setAttribute('aria-pressed', String(button.dataset.character === character.id));
       const status = button.querySelector('[data-class-status]');
-      if (status) status.textContent = locked ? `Locked · Reach Echo ${definition.unlockLevel}` : definition.ability;
+      if (status) status.textContent = locked ? `Locked · ${unlock.label} (${unlock.current}/${unlock.target})` : definition.ability;
     }
     for (const button of this.colorButtons ?? []) button.setAttribute('aria-pressed', String(button.dataset.color === color.id));
 
@@ -219,7 +266,7 @@ export class MainMenuScene extends Scene {
     if (this.classDetail) {
       this.classDetail.innerHTML = `
         <div class="deedz-class-detail__header">
-          <span class="deedz-class-preview" style="--goose-color:#${color.color.toString(16).padStart(6, '0')};--goose-accent:#${color.accent.toString(16).padStart(6, '0')}"></span>
+          <span class="deedz-class-preview" data-mark="${presentationMark(character)}" style="--goose-color:#${color.color.toString(16).padStart(6, '0')};--goose-accent:#${color.accent.toString(16).padStart(6, '0')};${presentationVariables(character)}"></span>
           <div><strong>${character.name}</strong><span>${character.ability}</span></div>
         </div>
         <p>${character.description}</p>
@@ -245,21 +292,31 @@ export class MainMenuScene extends Scene {
     if (!this.progressLine) return;
     const evolution = this.engine.save.get('progress.evolution', { level: 1, xp: 0, bossWins: 0 });
     const level = Math.max(1, Number(evolution.level) || 1);
-    const advanced = level >= ADVANCED_GOOSE_UNLOCK_LEVEL
-      ? 'Guardian + Ember unlocked'
-      : `Advanced geese unlock at Echo ${ADVANCED_GOOSE_UNLOCK_LEVEL}`;
-    this.progressLine.textContent = `Echo Layer ${level} · ${evolution.xp || 0} XP · ${evolution.bossWins || 0} Breadstorm victories · ${advanced}`;
+    const unlockProgress = this.#unlockProgress();
+    const unlockedCount = gooseClasses.filter((character) => isGooseClassUnlocked(character, unlockProgress)).length;
+    this.progressLine.textContent = `Echo Layer ${level} · ${evolution.xp || 0} XP · ${evolution.bossWins || 0} Breadstorm victories · ${unlockedCount}/${gooseClasses.length} geese unlocked`;
   }
 
   #saveProfile(name) {
     const clean = String(name || 'Deedz').trim().slice(0, 24) || 'Deedz';
     const savedClassId = this.engine.save.get('profile.character', 'classic');
-    const evolutionLevel = Math.max(1, Number(this.engine.save.get('progress.evolution.level', 1)) || 1);
-    const classId = isGooseClassUnlocked(savedClassId, evolutionLevel) ? savedClassId : 'classic';
+    const classId = isGooseClassUnlocked(savedClassId, this.#unlockProgress()) ? savedClassId : 'classic';
     if (classId !== savedClassId) this.engine.save.set('profile.character', classId);
     const colorId = this.engine.save.get('profile.color', 'snow');
     this.engine.save.set('profile.name', clean);
     this.engine.network.setProfile({ name: clean, character: networkCharacterId(classId, colorId) });
+    this.#refreshTopGoose();
+  }
+
+  #refreshTopGoose() {
+    if (!this.topGooseHonor) return;
+    const leader = topGoose({
+      localName: this.nameInput?.value || this.engine.save.get('profile.name', 'Deedz'),
+      progress: this.engine.save.get('progress', {}),
+      peers: [...(this.engine.network.peers?.values?.() ?? [])],
+    });
+    this.topGooseHonor.textContent = `Top Goose: ${leader.name}`;
+    this.topGooseHonor.title = `${leader.score} points · Echo ${leader.level}`;
   }
 
   #toggle(label, path, fallback, onChange = null) {

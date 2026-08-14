@@ -19,7 +19,7 @@ import { WorldSafetySystem, resolveSafeSpawn, supportingPlatformForSpawn } from 
 import { FlockSenseSystem } from '../systems/FlockSenseSystem.js';
 import { TouchControls } from '../ui/TouchControls.js';
 import { achievements } from '../data/achievements.js';
-import { characters, isGooseClassUnlocked } from '../data/characters.js';
+import { characters, gooseUnlockProgressFromSave, isGooseClassUnlocked } from '../data/characters.js';
 import { levels } from '../data/levels.js';
 import { BREADSTORM_ENCOUNTER, bossTargetForLevel } from '../data/progression.js';
 
@@ -225,9 +225,8 @@ export class WorldScene extends Scene {
     const restartMission = Boolean(options?.restartMission);
     if (restartMission) this.engine.save.set('progress.checkpoint', null, { immediate: true });
     const selectedId = this.engine.save.get('profile.character', 'deedz');
-    const evolutionLevel = Math.max(1, Number(this.engine.save.get('progress.evolution.level', 1)) || 1);
     const selectedCharacter = characters.find((item) => item.id === selectedId);
-    const character = selectedCharacter && isGooseClassUnlocked(selectedCharacter, evolutionLevel) ? selectedCharacter : characters[0];
+    const character = selectedCharacter && isGooseClassUnlocked(selectedCharacter, gooseUnlockProgressFromSave(this.engine.save)) ? selectedCharacter : characters[0];
     if (character !== selectedCharacter) this.engine.save.set('profile.character', 'classic');
     const savedCheckpointId = restartMission ? null : this.engine.save.get('progress.checkpoint', null);
     const savedCheckpoint = this.checkpoints.find((checkpoint) => checkpoint.checkpointId === savedCheckpointId);
@@ -306,7 +305,7 @@ export class WorldScene extends Scene {
           <span class="deedz-chip deedz-chip--echo" data-evolution>Echo L1 · 0/120</span>
         </div>
         <div class="deedz-hud__group deedz-hud__group--secondary">
-          <span class="deedz-chip deedz-chip--quest" data-adventure>Adventure · 0 crumbs · 0 finds · 0 foxes · 0/${this.level.requiredCrystals} echoes</span>
+          <span class="deedz-chip deedz-chip--quest" data-adventure>Adventure · 0 crumbs · 0 finds · 0 enemies · 0/${this.level.requiredCrystals} echoes</span>
           <span class="deedz-chip" data-flock>Flock 0/180</span>
           <span class="deedz-chip deedz-chip--boss" data-boss>Boss Dormant</span>
           <span class="deedz-chip deedz-chip--network" data-network>● ${this.engine.network.status} · ${this.engine.network.peers.size + 1} geese</span>
@@ -334,7 +333,7 @@ export class WorldScene extends Scene {
   #updateAdventureHud() {
     if (!this.hudAdventure) return;
     const state = this.objectiveState ?? {};
-    this.hudAdventure.textContent = `Adventure · ${state.crumbs ?? 0} crumbs · ${state.collectibles ?? 0} finds · ${state.enemies ?? 0} foxes · ${this.activeCrystals ?? 0}/${this.level.requiredCrystals} echoes`;
+    this.hudAdventure.textContent = `Adventure · ${state.crumbs ?? 0} crumbs · ${state.collectibles ?? 0} finds · ${state.enemies ?? 0} enemies · ${this.activeCrystals ?? 0}/${this.level.requiredCrystals} echoes`;
   }
 
   #updateHud(state) {
@@ -460,7 +459,7 @@ export class WorldScene extends Scene {
     if (!this.evolution?.ready) {
       const needed = Math.max(0, this.evolution.goal - this.evolution.state.xp);
       this.exitWarningCooldown = 2;
-      this.engine.ui.toast(`Your Echo Layer needs ${needed} more XP. Explore, collect, honk, and defeat foxes!`, { type: 'warning', duration: 3000 });
+      this.engine.ui.toast(`Your Echo Layer needs ${needed} more XP. Explore, collect, honk, and defeat enemies!`, { type: 'warning', duration: 3000 });
       return;
     }
     this.exitWarningCooldown = 2.5;
@@ -521,7 +520,7 @@ export class WorldScene extends Scene {
   }
 
   #resolvePlatforms() {
-    const movers = [this.player, ...this.engine.entities.findByTag('enemy').filter((enemy) => !enemy.hasTag('boss'))];
+    const movers = [this.player, ...this.engine.entities.findByTag('enemy').filter((enemy) => !enemy.hasTag('boss') && !enemy.hasTag('flying-enemy'))];
     for (const entity of movers) {
       const previousGround = entity.groundPlatform;
       if (entity.grounded && previousGround && !previousGround.destroyed) {

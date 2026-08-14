@@ -33,7 +33,7 @@ export class ContactDamageSystem {
     if (!enemy || enemy.hasTag?.('boss')) return false;
     const crumbCount = enemy.crumbDropCount?.() ?? 2;
     const defeated = enemy.defeat?.(this.engine, { cause, source, crumbCount });
-    if (defeated) this.engine.network.sendWorldEvent('enemy-defeated', { enemyId: enemy.enemyId, cause, crumbCount });
+    if (defeated && !enemy.hasTag?.('goose-lab-spawn')) this.engine.network.sendWorldEvent('enemy-defeated', { enemyId: enemy.enemyId, cause, crumbCount });
     return Boolean(defeated);
   }
 
@@ -67,7 +67,8 @@ export class ContactDamageSystem {
     const { playerCollider, enemyCollider } = this.#entities(contact);
     if (!playerCollider || !enemyCollider || enemyCollider.entity.defeated) return;
     if (this.#stomp(playerCollider, enemyCollider)) return;
-    playerCollider.entity.takeDamage?.(1, enemyCollider.entity, this.engine);
+    const damaged = playerCollider.entity.takeDamage?.(1, enemyCollider.entity, this.engine);
+    if (damaged) enemyCollider.entity.onPlayerHit?.(playerCollider.entity, this.engine);
   }
 
   destroy() { this.unsubscribers.forEach((off) => off()); }

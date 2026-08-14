@@ -7,7 +7,7 @@ export const GooseConfig = Object.freeze({
   physics: { gravityY: 1900, cellSize: 160 },
   save: {
     namespace: 'deedz-the-goose-v1',
-    version: 7,
+    version: 10,
     migrations: {
       2: (data) => ({
         ...data,
@@ -98,8 +98,29 @@ export const GooseConfig = Object.freeze({
           },
         },
       }),
+      8: (data) => ({
+        ...data,
+        settings: {
+          ...(data.settings ?? {}),
+          controls: migrateDefaultControllerLayout(data.settings?.controls ?? cloneDefaultInputBindings()),
+        },
+      }),
+      9: (data) => ({
+        ...data,
+        profile: {
+          ...(data.profile ?? {}),
+          character: data.profile?.character === 'adaboss' ? 'guardian' : (data.profile?.character ?? 'classic'),
+        },
+      }),
+      10: (data) => ({
+        ...data,
+        settings: {
+          ...(data.settings ?? {}),
+          controls: migrateDefaultControllerLayout(data.settings?.controls ?? cloneDefaultInputBindings()),
+        },
+      }),
     },
   },
   network: { room: 'goose-lobby', stateIntervalMs: 50, pingIntervalMs: 3000 },
-  debug: { enabled: import.meta.env.DEV, visible: false, drawColliders: true },
+  debug: { enabled: true, visible: false, drawColliders: true },
 });

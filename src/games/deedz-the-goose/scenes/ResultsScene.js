@@ -37,7 +37,7 @@ export class ResultsScene extends Scene {
       <div class="deedz-results">
         <div><span>Time</span><strong>${formatTime(data.elapsedMs ?? 0)}${data.isBest ? ' · NEW BEST' : ''}</strong></div>
         <div><span>Total crumbs</span><strong>${data.crumbs ?? 0}</strong></div>
-        <div><span>Foxes defeated</span><strong>${data.enemies ?? 0}</strong></div>
+        <div><span>Enemies defeated</span><strong>${data.enemies ?? 0}</strong></div>
         <div><span>Mission score</span><strong>${score.toLocaleString()}</strong></div>
       </div>
       <div class="deedz-actions"></div>`;

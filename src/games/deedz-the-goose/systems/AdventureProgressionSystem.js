@@ -1,6 +1,7 @@
 import { evolutionGoal } from '../data/evolutions.js';
 import { BREADSTORM_ENCOUNTER, bossTargetForLevel, nextEchoPreview } from '../data/progression.js';
 import { progressionDirective } from '../data/progressionDirective.js';
+import { gooseClasses, gooseUnlockProgressFromSave, isGooseClassUnlocked } from '../data/characters.js';
 
 export { bossTargetForLevel } from '../data/progression.js';
 
@@ -288,7 +289,7 @@ export class AdventureProgressionSystem {
         </section>
         <section class="deedz-record-card">
           <div class="deedz-section-title">Persistent Personal Records</div>
-          <div class="deedz-record-stats"><span>Best score <strong>${records.bestScore || 0}</strong></span><span>Highest Echo <strong>${records.highestLayer || 1}</strong></span><span>Most crumbs <strong>${records.mostCrumbs || 0}</strong></span><span>Foxes defeated <strong>${records.mostFoxes || 0}</strong></span></div>
+          <div class="deedz-record-stats"><span>Best score <strong>${records.bestScore || 0}</strong></span><span>Highest Echo <strong>${records.highestLayer || 1}</strong></span><span>Most crumbs <strong>${records.mostCrumbs || 0}</strong></span><span>Enemies defeated <strong>${records.mostFoxes || 0}</strong></span></div>
         </section>
       </div>
       <section class="deedz-next-echo-card">
@@ -304,8 +305,10 @@ export class AdventureProgressionSystem {
     if (!panel) return;
     const records = this.#updateRecords(state);
     const score = adventureScore(this.#scoreSnapshot(state));
+    const unlockProgress = gooseUnlockProgressFromSave(this.engine.save);
+    const unlockedGeese = gooseClasses.filter((character) => isGooseClassUnlocked(character, unlockProgress)).length;
     const progress = panel.querySelector('[data-progress]');
-    if (progress) progress.textContent = `Echo Layer ${state.level} · ${state.xp}/${state.goal ?? evolutionGoal(state.level)} XP · Score ${score} · Best ${records.bestScore || 0}`;
+    if (progress) progress.textContent = `Echo Layer ${state.level} · ${state.xp}/${state.goal ?? evolutionGoal(state.level)} XP · Score ${score} · Best ${records.bestScore || 0} · ${unlockedGeese}/${gooseClasses.length} geese unlocked`;
     let card = panel.querySelector('[data-next-echo-card]');
     if (!card) {
       card = document.createElement('section');

@@ -37,7 +37,8 @@ test('controller menu navigation maps D-pad, selection, back, Menu, and shoulder
   assert.equal(menuTabDirection(fakeInput({ buttons: [4] })), -1);
   assert.equal(menuTabDirection(fakeInput({ buttons: [5] })), 1);
   assert.equal(menuSelectPressed(fakeInput({ buttons: [0] })), true);
-  assert.equal(menuSelectPressed(fakeInput({ buttons: [3] })), true);
+  assert.equal(menuSelectPressed(fakeInput({ buttons: [3] })), false, 'Y is Wing Whap and should not confirm menu choices');
+  assert.equal(menuSelectPressed(fakeInput({ actions: ['interact'], buttons: [4] })), false, 'LB is reserved for the previous menu page');
   assert.equal(menuBackPressed(fakeInput({ buttons: [1] })), true);
   assert.equal(menuStartPressed(fakeInput({ buttons: [9] })), true);
 });
@@ -64,11 +65,14 @@ test('pause destination changes are atomic and global gameplay simulation freeze
   assert.match(source, /menuTabDirection/);
 });
 
-test('shareable goose roster fills all eight play-style slots', () => {
+test('shareable goose roster fills all eight friend-inspired play-style slots', () => {
   const names = gooseClasses.map((item) => item.name.toLowerCase()).join(' ');
   assert.equal(names.includes('sweetbloodrazor'), false);
   assert.equal(names.includes('mortalkrumbat'), false);
   assert.equal(gooseClasses.length, 8);
+  assert.ok(gooseClasses.some((item) => item.name === 'Curvy Goose'));
+  assert.ok(gooseClasses.some((item) => item.name === 'Bad Bad Goose'));
+  assert.ok(!gooseClasses.some((item) => item.id === 'adaboss'));
   assert.ok(gooseClasses.some((item) => item.name === 'Ember Goose' && item.projectileStyle === 'ember-bolt'));
 });
 

@@ -95,7 +95,7 @@ export class CombatSystem {
     enemy.takeDamage?.(damage, this.engine, { cause: kind, source });
     enemy.velocity.x = knockbackX;
     enemy.velocity.y = knockbackY;
-    if (broadcast) {
+    if (broadcast && !enemy.hasTag?.('goose-lab-spawn')) {
       this.engine.network.sendWorldEvent('enemy-hit', { enemyId: enemy.enemyId, damage, knockbackX, knockbackY });
       if (!wasDefeated && enemy.defeated) {
         this.engine.network.sendWorldEvent('enemy-defeated', {
