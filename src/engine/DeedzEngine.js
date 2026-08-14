@@ -15,6 +15,10 @@ import { SaveManager } from './save/SaveManager.js';
 import { PluginManager } from './plugins/PluginManager.js';
 import { Diagnostics } from './debug/Diagnostics.js';
 
+export function shouldSimulateWorld(scenes) {
+  return Boolean(scenes && !scenes.transitioning && !scenes.active?.blocksWorld);
+}
+
 export class DeedzEngine {
   constructor(config = {}) {
     this.config = EngineConfig.create(config);
@@ -100,7 +104,7 @@ export class DeedzEngine {
 
   #fixedUpdate(dt) {
     this.plugins.fixedUpdate(dt, this);
-    if (!this.scenes.active?.blocksWorld) {
+    if (shouldSimulateWorld(this.scenes)) {
       this.entities.fixedUpdate(dt, this);
       this.physics.fixedUpdate(dt);
     }
@@ -112,7 +116,7 @@ export class DeedzEngine {
     this.ui?.update(this.input);
     this.network.update(dt);
     this.plugins.update(dt, this);
-    if (!this.scenes.active?.blocksWorld) this.entities.update(dt, this);
+    if (shouldSimulateWorld(this.scenes)) this.entities.update(dt, this);
     this.scenes.update(dt);
     this.renderer.camera.update(dt);
   }

@@ -3,7 +3,7 @@ import { Scene } from '../../../engine/scenes/Scene.js';
 import { Screen } from '../../../engine/ui/Screen.js';
 import { Button } from '../../../engine/ui/Button.js';
 import { gooseClasses, gooseColors, networkCharacterId, setActiveGooseColor } from '../data/characters.js';
-import { menuDirection, menuSelectPressed, menuStartPressed } from '../data/menuNavigation.js';
+import { createMenuRepeatState, menuRepeatDirection, menuSelectPressed, menuStartPressed } from '../data/menuNavigation.js';
 
 function pips(value = 3) {
   const count = Math.max(1, Math.min(5, Number(value) || 1));
@@ -18,6 +18,7 @@ export class MainMenuScene extends Scene {
   constructor() {
     super('main-menu');
     this.unsubscribers = [];
+    this.menuRepeat = createMenuRepeatState();
   }
 
   async enter(data) {
@@ -42,7 +43,7 @@ export class MainMenuScene extends Scene {
         <div class="deedz-controller-pill" data-controller-status>Keyboard ready · connect a controller anytime</div>
       </div>
       <p class="deedz-subtitle">Pick a play style, choose your goose color, and enter the living shared world.</p>
-      <p class="deedz-menu-hint">Controller: D-pad / left stick moves · A selects · Menu starts</p>
+      <p class="deedz-menu-hint">Controller: ↑/↓ moves through sections · ←/→ moves within a choice row · A selects · Menu starts</p>
 
       <label class="deedz-field deedz-name-field">Goose name<input data-name maxlength="24" autocomplete="nickname"></label>
 
@@ -232,13 +233,48 @@ export class MainMenuScene extends Scene {
     return [...(this.panel?.querySelectorAll('button:not(:disabled), input:not(:disabled)') ?? [])].filter(isVisible);
   }
 
+  #focus(element) {
+    if (!element) return false;
+    element.focus();
+    element.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    return true;
+  }
+
   #moveFocus(direction) {
     const items = this.#focusables();
     if (!items.length) return;
     const current = document.activeElement;
     const index = items.indexOf(current);
-    const start = index >= 0 ? index : 0;
-    items[(start + direction + items.length) % items.length]?.focus();
+    const start = index >= 0 ? index : (direction > 0 ? -1 : 0);
+    this.#focus(items[(start + direction + items.length) % items.length]);
+  }
+
+  #moveWithinChoices(direction) {
+    const active = document.activeElement;
+    const groups = [this.characterButtons ?? [], this.colorButtons ?? []];
+    for (const group of groups) {
+      const index = group.indexOf(active);
+      if (index < 0 || !group.length) continue;
+      const next = (index + direction + group.length) % group.length;
+      this.#focus(group[next]);
+      return true;
+    }
+    if (active?.tagName === 'INPUT' && active.type === 'checkbox') {
+      const next = direction > 0;
+      if (active.checked !== next) {
+        active.checked = next;
+        active.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return true;
+    }
+    const actions = [...(this.panel?.querySelectorAll('[data-actions] button:not(:disabled)') ?? [])].filter(isVisible);
+    const actionIndex = actions.indexOf(active);
+    if (actionIndex >= 0 && actions.length > 1) {
+      const next = (actionIndex + direction + actions.length) % actions.length;
+      this.#focus(actions[next]);
+      return true;
+    }
+    return false;
   }
 
   #activateFocused() {
@@ -270,12 +306,20 @@ export class MainMenuScene extends Scene {
       this.#activateFocused();
       return;
     }
-    const direction = menuDirection(input);
-    if (direction === 'left' || direction === 'up') {
+    const direction = menuRepeatDirection(input, this.menuRepeat);
+    if (direction === 'up') {
       this.#moveFocus(-1);
       return;
     }
-    if (direction === 'right' || direction === 'down') this.#moveFocus(1);
+    if (direction === 'down') {
+      this.#moveFocus(1);
+      return;
+    }
+    if (direction === 'left') {
+      this.#moveWithinChoices(-1);
+      return;
+    }
+    if (direction === 'right') this.#moveWithinChoices(1);
   }
 
   async exit() {
