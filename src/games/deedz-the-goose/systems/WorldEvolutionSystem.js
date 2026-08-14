@@ -13,7 +13,7 @@ import {
   breadstormShieldDamage,
   breadstormShieldUnlocked,
   breadstormStats,
-} from '../../../shared/bossBalance.js';
+} from '../../../../server/shared/bossBalance.js';
 import { BREADSTORM_ENCOUNTER, bossTargetForLevel } from '../data/progression.js';
 import { ADVANCED_GOOSE_UNLOCK_LEVEL, advancedGooseUnlocks } from '../data/characters.js';
 import {

@@ -5,7 +5,7 @@ import {
   breadstormShieldDamage,
   breadstormShieldUnlocked,
   breadstormStats,
-} from '../../src/shared/bossBalance.js';
+} from '../shared/bossBalance.js';
 
 function cleanProfile(profile = {}) {
   return {

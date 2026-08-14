@@ -8,7 +8,7 @@ import {
   breadstormShieldDamage,
   breadstormShieldUnlocked,
   breadstormStats,
-} from '../src/shared/bossBalance.js';
+} from '../server/shared/bossBalance.js';
 import { BREADSTORM_ENCOUNTER, bossTargetForLevel } from '../src/games/deedz-the-goose/data/progression.js';
 import { foxCrumbDropCount, isStompLanding, PECK_PROFILE, WING_WHAP_PROFILE } from '../src/games/deedz-the-goose/data/combat.js';
 import { CombatSystem } from '../src/games/deedz-the-goose/systems/CombatSystem.js';
