@@ -41,7 +41,7 @@ test('live game boots simple progression and input polish instead of legacy mand
 test('awakened Echo crystals are saved and restored instead of living only in room memory', async () => {
   const source = await readFile(new URL('../src/games/deedz-the-goose/systems/AdventureProgressionSystem.js', import.meta.url), 'utf8');
   assert.match(source, /progress\.activatedCrystals/);
-  assert.match(source, /crystal\.crystalId/);
+  assert.match(source, /crystal\?\.crystalId/);
   assert.match(source, /activate\?\.\(this\.engine, \{ synced: true, persisted: true \}\)/);
   assert.match(source, /immediate: true/);
 });
