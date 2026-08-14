@@ -8,8 +8,8 @@ import { PauseScene } from './scenes/PauseScene.js';
 import { ResultsScene } from './scenes/ResultsScene.js';
 import { cloneDefaultInputBindings } from '../../engine/input/InputMap.js';
 import { GooseClassSystem } from './systems/GooseClassSystem.js';
-import { ProgressionDirectorSystem } from './systems/ProgressionDirectorSystem.js';
-import { GameplayPolishSystem } from './systems/GameplayPolishSystem.js';
+import { AdventureProgressionSystem } from './systems/AdventureProgressionSystem.js';
+import { GameplayInputSystem } from './systems/GameplayInputSystem.js';
 import { networkCharacterId } from './data/characters.js';
 
 export class GooseGame extends GameApp {
@@ -19,7 +19,18 @@ export class GooseGame extends GameApp {
     return {
       profile: { name: 'Deedz', character: 'classic', color: 'snow', cosmetics: ['cap', 'chain'] },
       settings: { master: 0.75, music: true, musicVolume: 0.55, adaptiveMusic: true, touchControls: 'auto', sfx: true, sfxVolume: 0.8, voice: false, screenShake: true, controls: cloneDefaultInputBindings() },
-      progress: { chapter: 1, crumbs: 0, crumbAmmo: 12, enemies: 0, collectibles: 0, bestTime: null, checkpoint: null, evolution: { level: 1, xp: 0, cycle: 0, seed: 1337, bossWins: 0 } },
+      progress: {
+        chapter: 1,
+        crumbs: 0,
+        crumbAmmo: 12,
+        enemies: 0,
+        collectibles: 0,
+        bestTime: null,
+        checkpoint: null,
+        activatedCrystals: [],
+        records: { bestScore: 0, highestLayer: 1, mostCrumbs: 0, mostFoxes: 0 },
+        evolution: { level: 1, xp: 0, cycle: 0, seed: 1337, bossWins: 0 },
+      },
       achievements: [],
     };
   }
@@ -36,8 +47,8 @@ export class GooseGame extends GameApp {
   }
   async initialize(engine) {
     this.gooseClasses = new GooseClassSystem(engine);
-    this.progressionDirector = new ProgressionDirectorSystem(engine);
-    this.gameplayPolish = new GameplayPolishSystem(engine);
+    this.adventureProgression = new AdventureProgressionSystem(engine);
+    this.gameplayInput = new GameplayInputSystem(engine);
     engine.events.on('network:open', () => engine.ui.toast('Connected to Goose Lobby.', { type: 'success' }));
     engine.events.on('network:close', () => engine.ui.toast('Offline mode active.', { type: 'warning' }));
     engine.events.on('save:error', () => engine.ui.toast('Local storage is unavailable. Progress will last for this session only.', { type: 'warning', duration: 5000 }));
@@ -49,8 +60,8 @@ export class GooseGame extends GameApp {
     engine.audio.setVolumes({ master: settings.master ?? 0.75, music: settings.music === false ? 0 : (settings.musicVolume ?? 0.55), sfx: settings.sfx === false ? 0 : (settings.sfxVolume ?? 0.8) });
   }
   async shutdown() {
-    this.gameplayPolish?.destroy();
-    this.progressionDirector?.destroy();
+    this.gameplayInput?.destroy();
+    this.adventureProgression?.destroy();
     this.gooseClasses?.destroy();
   }
 }
