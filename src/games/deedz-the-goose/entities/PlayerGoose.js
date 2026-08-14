@@ -2,6 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import { Entity } from '../../../engine/entities/Entity.js';
 import { Collider } from '../../../engine/physics/Collider.js';
 import { approach, clamp, signNonZero } from '../../../shared/math.js';
+import { PECK_PROFILE, WING_WHAP_PROFILE } from '../data/combat.js';
 import { chargedThrowProfile, THROW_CHARGE } from '../data/throwing.js';
 import { WingBurst } from './ActionEffects.js';
 
@@ -34,6 +35,7 @@ export class PlayerGoose extends Entity {
     this.maxHp = 6;
     this.invulnerable = 0;
     this.attackCooldown = 0;
+    this.peckCooldown = 0;
     this.throwCooldown = 0;
     this.emptyThrowCooldown = 0;
     this.throwCharging = false;
@@ -84,6 +86,7 @@ export class PlayerGoose extends Entity {
     this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
     this.invulnerable = Math.max(0, this.invulnerable - dt);
     this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+    this.peckCooldown = Math.max(0, this.peckCooldown - dt);
     this.throwCooldown = Math.max(0, this.throwCooldown - dt);
     this.emptyThrowCooldown = Math.max(0, this.emptyThrowCooldown - dt);
     this.honkCooldown = Math.max(0, this.honkCooldown - dt);
@@ -145,11 +148,19 @@ export class PlayerGoose extends Entity {
       engine.network.sendAction('dash', { x: this.x, y: this.y, facing: this.facing });
     }
 
-    if (input.wasPressed('attack') && this.attackCooldown <= 0) {
-      this.attackCooldown = 0.28;
+    if (input.wasPressed('attack') && this.attackCooldown <= 0 && this.peckCooldown <= 0) {
+      this.attackCooldown = WING_WHAP_PROFILE.cooldown;
       engine.events.emit('goose:attack', { player: this });
       engine.network.sendAction('attack', { x: this.x, y: this.y, facing: this.facing });
       if (engine.save.get('settings.sfx', true)) engine.audio.sfx.tone({ frequency: 180, slide: -80, duration: 0.06 });
+    }
+
+    if (input.wasPressed('peck') && this.peckCooldown <= 0 && this.attackCooldown <= 0 && !this.crouching) {
+      this.peckCooldown = PECK_PROFILE.cooldown;
+      this.velocity.x += this.facing * (this.grounded ? PECK_PROFILE.groundLunge : PECK_PROFILE.airLunge);
+      engine.events.emit('goose:peck', { player: this });
+      engine.network.sendAction('peck', { x: this.x, y: this.y, facing: this.facing });
+      if (engine.save.get('settings.sfx', true)) engine.audio.sfx.tone({ frequency: 410, slide: -130, duration: 0.045, type: 'square', volume: 0.055 });
     }
 
     if (input.wasPressed('throw') && this.throwCooldown <= 0 && !this.throwCharging) this.#beginThrowCharge(engine);
@@ -302,6 +313,12 @@ export class PlayerGoose extends Entity {
     }
 
     if (this.attackCooldown > 0.17) this.wing.rotation -= 0.58;
+    if (this.peckCooldown > PECK_PROFILE.cooldown * 0.5) {
+      this.art.x = this.facing * 14 * Math.sin((this.peckCooldown / PECK_PROFILE.cooldown) * Math.PI);
+      this.body.rotation = this.facing * 0.08;
+    } else if (this.dashTime <= 0) {
+      this.art.x = 0;
+    }
     this.legs.visible = this.grounded || this.velocity.y > 100;
   }
 

@@ -1,5 +1,18 @@
 import { evolutionGoal, stageForLevel } from './evolutions.js';
 
+export const BREADSTORM_ENCOUNTER = Object.freeze({
+  x: 4860,
+  y: 800,
+  zone: 'Moonwater Ravine',
+  firstLayer: 2,
+  shieldLayer: 5,
+  phaseShieldLayer: 7,
+});
+
+export function bossTargetForLevel(level = 1) {
+  return Math.max(0, Math.floor(Number(level) || 1) - 1);
+}
+
 export function flockScore({ level = 1, xp = 0, bossWins = 0, crumbs = 0, enemies = 0, collectibles = 0 } = {}) {
   return Math.max(0, (Number(level) - 1) * 1500 + Number(bossWins) * 700 + Number(xp) * 2 + Number(crumbs) * 2 + Number(enemies) * 50 + Number(collectibles) * 25);
 }

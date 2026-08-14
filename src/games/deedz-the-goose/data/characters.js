@@ -31,6 +31,7 @@ export const gooseColors = Object.freeze([
 
 let activeColorId = 'snow';
 const activePlumage = () => gooseColors.find((item) => item.id === activeColorId) ?? gooseColors[0];
+export const ADVANCED_GOOSE_UNLOCK_LEVEL = 10;
 
 function gooseClass(definition) {
   return Object.freeze({
@@ -44,12 +45,24 @@ export const gooseClasses = Object.freeze([
   gooseClass({ id: 'classic', name: 'Classic Goose', ability: 'All-Rounder', description: 'No bonuses and no penalties. Reliable everywhere.', tradeoff: 'Balanced baseline', themeColor: 0xf7fbff, stats: stats(), ratings: { health: 3, speed: 3, honk: 3, throw: 3, flight: 3 } }),
   gooseClass({ id: 'echo', name: 'Echo Goose', ability: 'Big Honk', description: 'Longer, stronger honks with a quicker recharge.', tradeoff: 'Less health and weaker crumb throws', themeColor: 0x55d6ff, stats: stats({ health: 5, honkRange: 1.25, honkStrength: 1.08, honkCooldown: 0.9, throwStrength: 0.92 }), ratings: { health: 2, speed: 3, honk: 5, throw: 2, flight: 3 } }),
   gooseClass({ id: 'ranger', name: 'Crumb Ranger', ability: 'Long Toss', description: 'Charged crumbs travel farther, higher, and stay airborne longer.', tradeoff: 'Less health, shorter honk, slower dash recharge', themeColor: 0xffd95a, stats: stats({ health: 5, throwStrength: 1.2, throwLift: 1.1, throwDuration: 1.15, honkRange: 0.9, dashCooldown: 1.08 }), ratings: { health: 2, speed: 3, honk: 2, throw: 5, flight: 3 } }),
-  gooseClass({ id: 'guardian', name: 'Guardian Goose', ability: 'Sturdy', description: 'Eight hearts make this goose the safest frontline choice.', tradeoff: 'Slower movement, dash, and glide', themeColor: 0x7dff8a, stats: stats({ health: 8, speed: 0.9, acceleration: 0.92, dashSpeed: 0.9, flightDuration: 0.9 }), ratings: { health: 5, speed: 2, honk: 3, throw: 3, flight: 2 } }),
+  gooseClass({ id: 'guardian', name: 'Guardian Goose', ability: 'Sturdy', description: 'Eight hearts make this goose the safest frontline choice.', tradeoff: 'Slower movement, dash, and glide', unlockLevel: ADVANCED_GOOSE_UNLOCK_LEVEL, themeColor: 0x7dff8a, stats: stats({ health: 8, speed: 0.9, acceleration: 0.92, dashSpeed: 0.9, flightDuration: 0.9 }), ratings: { health: 5, speed: 2, honk: 3, throw: 3, flight: 2 } }),
   gooseClass({ id: 'skywing', name: 'Skywing Goose', ability: 'Long Glide', description: 'Third-jump flight lasts dramatically longer.', tradeoff: 'Less health, slower movement and dash', themeColor: 0xb794ff, stats: stats({ health: 5, speed: 0.94, flightDuration: 1.55, dashSpeed: 0.92 }), ratings: { health: 2, speed: 2, honk: 3, throw: 3, flight: 5 } }),
   gooseClass({ id: 'swift', name: 'Swift Goose', ability: 'Quick Dash', description: 'Faster running, acceleration, and a stronger, quicker dash.', tradeoff: 'Less health and shorter honk', themeColor: 0xff7fbe, stats: stats({ health: 5, speed: 1.12, acceleration: 1.1, dashSpeed: 1.15, dashCooldown: 0.85, honkRange: 0.9 }), ratings: { health: 2, speed: 5, honk: 2, throw: 3, flight: 3 } }),
   gooseClass({ id: 'spring', name: 'Spring Goose', ability: 'High Flap', description: 'Every jump launches higher, making vertical routes easier.', tradeoff: 'Less health, slower running, shorter third-jump flight', themeColor: 0xff8a42, stats: stats({ health: 5, speed: 0.94, jumpSpeed: 1.15, flightDuration: 0.85, dashCooldown: 1.06 }), ratings: { health: 2, speed: 2, honk: 3, throw: 3, flight: 5 } }),
-  gooseClass({ id: 'firebrand', name: 'Ember Goose', ability: 'Fire Feather', description: 'Turns every thrown crumb into a fast, nearly straight flaming feather bolt.', tradeoff: 'Less health, shorter honk, and little ability to arc shots over cover', themeColor: 0xff4b4b, projectileStyle: 'ember-bolt', stats: stats({ health: 5, honkRange: 0.9, throwStrength: 1.15, throwLift: 0.92, throwDuration: 0.92 }), ratings: { health: 2, speed: 3, honk: 2, throw: 5, flight: 3 } }),
+  gooseClass({ id: 'firebrand', name: 'Ember Goose', ability: 'Fire Feather', description: 'Turns every thrown crumb into a fast, nearly straight flaming feather bolt.', tradeoff: 'Less health, shorter honk, and little ability to arc shots over cover', unlockLevel: ADVANCED_GOOSE_UNLOCK_LEVEL, themeColor: 0xff4b4b, projectileStyle: 'ember-bolt', stats: stats({ health: 5, honkRange: 0.9, throwStrength: 1.15, throwLift: 0.92, throwDuration: 0.92 }), ratings: { health: 2, speed: 3, honk: 2, throw: 5, flight: 3 } }),
 ]);
+
+export function isGooseClassUnlocked(characterOrId, evolutionLevel = 1) {
+  const character = typeof characterOrId === 'string'
+    ? gooseClasses.find((item) => item.id === characterOrId)
+    : characterOrId;
+  if (!character) return false;
+  return Math.max(1, Math.floor(Number(evolutionLevel) || 1)) >= Math.max(1, Number(character.unlockLevel) || 1);
+}
+
+export function advancedGooseUnlocks() {
+  return gooseClasses.filter((item) => Number(item.unlockLevel) === ADVANCED_GOOSE_UNLOCK_LEVEL);
+}
 
 export function setActiveGooseColor(colorId = 'snow') {
   activeColorId = gooseColors.some((item) => item.id === colorId) ? colorId : 'snow';

@@ -1,6 +1,10 @@
 import { SocketClient } from './SocketClient.js';
 import { NetEvents } from './NetEvents.js';
 
+export function localNetworkEventName(type = '') {
+  return type === NetEvents.WORLD_EVENT ? 'net:world-event' : `net:${type}`;
+}
+
 export class NetworkManager {
   constructor(config, events) {
     this.config = config;
@@ -83,7 +87,7 @@ export class NetworkManager {
       this.peers.set(payload.id, { ...peer, state: payload });
     }
     if (type === NetEvents.PONG && payload.echo?.clientTime) this.latency = Math.max(0, Date.now() - payload.echo.clientTime);
-    this.events.emit(`net:${type}`, payload);
+    this.events.emit(localNetworkEventName(type), payload);
   }
 
   destroy() {

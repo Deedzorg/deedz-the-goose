@@ -59,6 +59,7 @@ test('pause destination changes are atomic and global gameplay simulation freeze
   assert.equal(shouldSimulateWorld({ transitioning: true, active: { blocksWorld: false } }), false);
   assert.equal(shouldSimulateWorld({ transitioning: false, active: { blocksWorld: true } }), false);
   assert.equal(shouldSimulateWorld({ transitioning: false, active: { blocksWorld: false } }), true);
+  assert.equal(shouldSimulateWorld({ transitioning: false, active: null }), false, 'physics must not run without an active scene');
   assert.match(source, /id: 'records'/);
   assert.match(source, /menuTabDirection/);
 });
@@ -80,14 +81,14 @@ test('progression gives one clear next objective and teases the next Echo layer'
   assert.equal(xpStep.phase, 'xp');
   assert.match(xpStep.detail, /30 XP/);
 
-  const summonStep = progressionDirective({ activeCrystals: 3, requiredCrystals: 3, level: 1, xp: 120, xpGoal: 120, bossWins: 0, bossTarget: 1, flockEnergy: 150, flockGoal: 180 });
+  const summonStep = progressionDirective({ activeCrystals: 3, requiredCrystals: 3, level: 2, xp: 165, xpGoal: 165, bossWins: 0, bossTarget: 1, flockEnergy: 150, flockGoal: 180 });
   assert.equal(summonStep.phase, 'summon');
 
-  const fightStep = progressionDirective({ activeCrystals: 3, requiredCrystals: 3, level: 1, xp: 120, xpGoal: 120, boss: { active: true, phase: 2, hp: 30, maxHp: 50, shield: 4 } });
+  const fightStep = progressionDirective({ activeCrystals: 3, requiredCrystals: 3, level: 3, xp: 210, xpGoal: 210, bossWins: 1, bossTarget: 2, boss: { active: true, phase: 2, hp: 30, maxHp: 50, shield: 4, shieldEnabled: true } });
   assert.equal(fightStep.phase, 'boss-shield');
   assert.match(fightStep.detail, /HONK/);
 
-  const gateStep = progressionDirective({ activeCrystals: 3, requiredCrystals: 3, level: 1, xp: 120, xpGoal: 120, bossWins: 1, bossTarget: 1 });
+  const gateStep = progressionDirective({ activeCrystals: 3, requiredCrystals: 3, level: 1, xp: 120, xpGoal: 120, bossWins: 0, bossTarget: 0 });
   assert.equal(gateStep.phase, 'gate');
   assert.match(gateStep.title, /ECHO LAYER 2/);
   assert.equal(nextEchoPreview(1).level, 2);
@@ -120,9 +121,10 @@ test('base adventure contains enough solo Flock Energy to summon Breadstorm', ()
 });
 
 test('boss guidance clearly distinguishes dormant, shield, and damage phases', () => {
-  assert.match(bossGuidanceLabel({ shared: { flockEnergy: 90, flockGoal: 180, boss: null } }), /Flock 90\/180/);
-  assert.match(bossGuidanceLabel({ shared: { boss: { active: true, phase: 1, hp: 50, maxHp: 50, shield: 7 } } }), /HONK/);
-  assert.match(bossGuidanceLabel({ shared: { boss: { active: true, phase: 1, hp: 42, maxHp: 50, shield: 0 } } }), /ATTACK/);
+  assert.match(bossGuidanceLabel({ level: 2, bossWins: 0, shared: { flockEnergy: 90, flockGoal: 180, boss: null } }), /Boss Charge 90\/180/);
+  assert.match(bossGuidanceLabel({ level: 5, bossWins: 3, shared: { boss: { active: true, phase: 1, hp: 4, maxHp: 4, shield: 1 } } }), /HONK/);
+  assert.match(bossGuidanceLabel({ level: 2, bossWins: 0, shared: { boss: { active: true, phase: 1, hp: 1, maxHp: 1, shield: 0, shieldEnabled: false } } }), /ATTACK/);
+  assert.match(bossGuidanceLabel({ level: 1, bossWins: 0, shared: {} }), /Echo 2/);
 });
 
 test('server-authoritative Breadstorm lifecycle grows after each victory', () => {
@@ -137,13 +139,13 @@ test('server-authoritative Breadstorm lifecycle grows after each victory', () =>
   const firstMaxHp = result.boss.maxHp;
   const firstMaxShield = result.boss.maxShield;
 
-  const blocked = manager.applyWorldEvent(client, { event: 'boss-hit', bossId: result.boss.id, damage: 8, hitType: 'attack' });
-  assert.equal(blocked.damageApplied, 0);
-  assert.equal(blocked.boss.hp, blocked.boss.maxHp);
-  assert.ok(blocked.boss.shield > 0);
+  const openingHit = manager.applyWorldEvent(client, { event: 'boss-hit', bossId: result.boss.id, damage: 8, hitType: 'attack' });
+  assert.equal(openingHit.damageApplied, 1);
+  assert.equal(openingHit.boss.hp, 0);
+  assert.equal(openingHit.boss.shield, 0);
 
-  let boss = blocked.boss;
-  let sawHpDamage = false;
+  let boss = openingHit.boss;
+  let sawHpDamage = openingHit.damageApplied > 0;
   let sawPhaseShield = false;
   let guard = 0;
   while (boss.active && guard < 80) {
@@ -162,16 +164,16 @@ test('server-authoritative Breadstorm lifecycle grows after each victory', () =>
   assert.equal(boss.defeated, true);
   assert.equal(boss.active, false);
   assert.equal(sawHpDamage, true);
-  assert.equal(sawPhaseShield, true);
+  assert.equal(sawPhaseShield, false);
   const world = manager.getWorldState('goose-lobby');
   assert.equal(world.bossWins, 1);
   assert.equal(world.flockEnergy, 0);
   assert.equal(world.flockGoal, 225);
 
   let second;
-  for (let index = 0; index < 8; index += 1) second = manager.applyWorldEvent(client, { event: 'flock-energy', amount: 30, reason: 'second-cycle' });
+  for (let index = 0; index < 11; index += 1) second = manager.applyWorldEvent(client, { event: 'flock-energy', amount: 30, reason: 'fourth-form', evolutionLevel: 5 });
   assert.equal(second.boss.active, true);
-  assert.equal(second.boss.cycle, 2);
+  assert.equal(second.boss.cycle, 4);
   assert.ok(second.boss.maxHp > firstMaxHp, 'next Breadstorm should gain HP');
   assert.ok(second.boss.maxShield > firstMaxShield, 'next Breadstorm should gain shield strength');
 });

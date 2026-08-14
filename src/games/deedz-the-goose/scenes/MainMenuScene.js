@@ -2,8 +2,16 @@ import { Graphics, Text } from 'pixi.js';
 import { Scene } from '../../../engine/scenes/Scene.js';
 import { Screen } from '../../../engine/ui/Screen.js';
 import { Button } from '../../../engine/ui/Button.js';
-import { gooseClasses, gooseColors, networkCharacterId, setActiveGooseColor } from '../data/characters.js';
+import {
+  ADVANCED_GOOSE_UNLOCK_LEVEL,
+  gooseClasses,
+  gooseColors,
+  isGooseClassUnlocked,
+  networkCharacterId,
+  setActiveGooseColor,
+} from '../data/characters.js';
 import { createMenuRepeatState, menuRepeatDirection, menuSelectPressed, menuStartPressed } from '../data/menuNavigation.js';
+import { enterMobileFullscreen } from '../data/mobileDisplay.js';
 
 function pips(value = 3) {
   const count = Math.max(1, Math.min(5, Number(value) || 1));
@@ -43,6 +51,7 @@ export class MainMenuScene extends Scene {
         <div class="deedz-controller-pill" data-controller-status>Keyboard ready · connect a controller anytime</div>
       </div>
       <p class="deedz-subtitle">Pick a play style, choose your goose color, and enter the living shared world.</p>
+      <p class="deedz-mobile-fullscreen-tip">Phone play enters full screen when you start. Add the game to your Home Screen for the cleanest browser-free view.</p>
       <p class="deedz-menu-hint">Controller: ↑/↓ moves through sections · ←/→ moves within a choice row · A selects · Menu starts</p>
 
       <label class="deedz-field deedz-name-field">Goose name<input data-name maxlength="24" autocomplete="nickname"></label>
@@ -61,8 +70,12 @@ export class MainMenuScene extends Scene {
       <div class="deedz-progress-line" data-progress></div>
       <div class="deedz-actions deedz-launch-actions" data-actions></div>`;
 
+    const evolution = this.engine.save.get('progress.evolution', { level: 1, xp: 0, bossWins: 0 });
+    const evolutionLevel = Math.max(1, Number(evolution.level) || 1);
     const savedClass = this.engine.save.get('profile.character', 'classic');
-    if (!gooseClasses.some((item) => item.id === savedClass)) this.engine.save.set('profile.character', 'classic');
+    if (!gooseClasses.some((item) => item.id === savedClass) || !isGooseClassUnlocked(savedClass, evolutionLevel)) {
+      this.engine.save.set('profile.character', 'classic');
+    }
     const savedColor = this.engine.save.get('profile.color', 'snow');
     if (!gooseColors.some((item) => item.id === savedColor)) this.engine.save.set('profile.color', 'snow');
     setActiveGooseColor(this.engine.save.get('profile.color', 'snow'));
@@ -78,10 +91,18 @@ export class MainMenuScene extends Scene {
       button.type = 'button';
       button.className = 'deedz-class-card';
       button.dataset.character = character.id;
+      const locked = !isGooseClassUnlocked(character, evolutionLevel);
+      button.classList.toggle('is-locked', locked);
+      button.dataset.locked = String(locked);
       button.innerHTML = `
         <span class="deedz-class-card__mark" style="--class-color:#${character.themeColor.toString(16).padStart(6, '0')}"></span>
-        <span><strong>${character.name}</strong><small>${character.ability}</small></span>`;
+        <span><strong>${character.name}</strong><small data-class-status>${locked ? `Locked · Reach Echo ${character.unlockLevel}` : character.ability}</small></span>`;
       button.addEventListener('click', () => {
+        const currentLevel = Math.max(1, Number(this.engine.save.get('progress.evolution.level', 1)) || 1);
+        if (!isGooseClassUnlocked(character, currentLevel)) {
+          this.engine.ui.toast(`${character.name} unlocks at Echo Layer ${character.unlockLevel}.`, { type: 'warning', duration: 2400 });
+          return;
+        }
         this.engine.save.set('profile.character', character.id);
         this.#refreshSelection();
         this.#saveProfile(nameInput.value);
@@ -116,16 +137,16 @@ export class MainMenuScene extends Scene {
       this.#toggle('Screen shake', 'settings.screenShake', true),
     );
 
-    const evolution = this.engine.save.get('progress.evolution', { level: 1, xp: 0, bossWins: 0 });
-    panel.querySelector('[data-progress]').textContent =
-      `Echo Layer ${evolution.level || 1} · ${evolution.xp || 0} XP · ${evolution.bossWins || 0} Breadstorm victories`;
+    this.progressLine = panel.querySelector('[data-progress]');
+    this.#refreshProgressLine();
 
     const actions = panel.querySelector('[data-actions]');
     this.play = new Button({
       label: 'Start Adventure',
       variant: 'primary',
-      onClick: () => {
+      onClick: async () => {
         this.#saveProfile(nameInput.value);
+        await enterMobileFullscreen(window);
         if (!this.engine.scenes.transitioning) this.engine.scenes.change('world');
       },
     });
@@ -137,6 +158,7 @@ export class MainMenuScene extends Scene {
         nameInput.value = 'Deedz';
         setActiveGooseColor('snow');
         this.#refreshSelection();
+        this.#refreshProgressLine();
         this.engine.ui.toast('Local progress reset.', { type: 'warning' });
       },
     });
@@ -151,7 +173,8 @@ export class MainMenuScene extends Scene {
     this.engine.ui.show(this.screen.id);
     this.#refreshSelection();
     this.#refreshControllerStatus(this.engine.input.gamepad.info);
-    this.play.focus();
+    this.play.focus({ preventScroll: true });
+    this.screen.element.scrollTop = 0;
 
     this.unsubscribers.push(
       this.engine.events.on('gamepad:connected', (info) => this.#refreshControllerStatus(info)),
@@ -172,11 +195,24 @@ export class MainMenuScene extends Scene {
   }
 
   #refreshSelection() {
-    const character = this.#selectedClass();
+    const evolutionLevel = Math.max(1, Number(this.engine.save.get('progress.evolution.level', 1)) || 1);
+    let character = this.#selectedClass();
+    if (!isGooseClassUnlocked(character, evolutionLevel)) {
+      this.engine.save.set('profile.character', 'classic');
+      character = this.#selectedClass();
+    }
     const color = this.#selectedColor();
     setActiveGooseColor(color.id);
 
-    for (const button of this.characterButtons ?? []) button.setAttribute('aria-pressed', String(button.dataset.character === character.id));
+    for (const button of this.characterButtons ?? []) {
+      const definition = gooseClasses.find((item) => item.id === button.dataset.character);
+      const locked = !isGooseClassUnlocked(definition, evolutionLevel);
+      button.classList.toggle('is-locked', locked);
+      button.dataset.locked = String(locked);
+      button.setAttribute('aria-pressed', String(button.dataset.character === character.id));
+      const status = button.querySelector('[data-class-status]');
+      if (status) status.textContent = locked ? `Locked · Reach Echo ${definition.unlockLevel}` : definition.ability;
+    }
     for (const button of this.colorButtons ?? []) button.setAttribute('aria-pressed', String(button.dataset.color === color.id));
 
     const ratings = character.ratings ?? {};
@@ -205,9 +241,22 @@ export class MainMenuScene extends Scene {
     return `<div class="deedz-stat"><span>${label}</span><strong aria-label="${value} of 5">${pips(value)}</strong></div>`;
   }
 
+  #refreshProgressLine() {
+    if (!this.progressLine) return;
+    const evolution = this.engine.save.get('progress.evolution', { level: 1, xp: 0, bossWins: 0 });
+    const level = Math.max(1, Number(evolution.level) || 1);
+    const advanced = level >= ADVANCED_GOOSE_UNLOCK_LEVEL
+      ? 'Guardian + Ember unlocked'
+      : `Advanced geese unlock at Echo ${ADVANCED_GOOSE_UNLOCK_LEVEL}`;
+    this.progressLine.textContent = `Echo Layer ${level} · ${evolution.xp || 0} XP · ${evolution.bossWins || 0} Breadstorm victories · ${advanced}`;
+  }
+
   #saveProfile(name) {
     const clean = String(name || 'Deedz').trim().slice(0, 24) || 'Deedz';
-    const classId = this.engine.save.get('profile.character', 'classic');
+    const savedClassId = this.engine.save.get('profile.character', 'classic');
+    const evolutionLevel = Math.max(1, Number(this.engine.save.get('progress.evolution.level', 1)) || 1);
+    const classId = isGooseClassUnlocked(savedClassId, evolutionLevel) ? savedClassId : 'classic';
+    if (classId !== savedClassId) this.engine.save.set('profile.character', classId);
     const colorId = this.engine.save.get('profile.color', 'snow');
     this.engine.save.set('profile.name', clean);
     this.engine.network.setProfile({ name: clean, character: networkCharacterId(classId, colorId) });

@@ -1,5 +1,8 @@
 import { evolutionGoal } from '../data/evolutions.js';
-import { nextEchoPreview } from '../data/progression.js';
+import { BREADSTORM_ENCOUNTER, bossTargetForLevel, nextEchoPreview } from '../data/progression.js';
+import { progressionDirective } from '../data/progressionDirective.js';
+
+export { bossTargetForLevel } from '../data/progression.js';
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -15,30 +18,8 @@ export function adventureScore({ level = 1, xp = 0, crumbs = 0, enemies = 0, col
   );
 }
 
-export function nextAdventureDirective({ activeCrystals = 0, requiredCrystals = 3, level = 1, xp = 0, xpGoal = evolutionGoal(level) } = {}) {
-  const next = nextEchoPreview(level);
-  if (activeCrystals < requiredCrystals) {
-    return {
-      phase: 'crystals',
-      title: `NEXT · AWAKEN ECHO CRYSTALS ${activeCrystals}/${requiredCrystals}`,
-      detail: 'Hold Flock Sense (LT / Q) to find a crystal, then HONK nearby. Awakened crystals stay saved.',
-      next,
-    };
-  }
-  if (xp < xpGoal) {
-    return {
-      phase: 'xp',
-      title: `NEXT · CHARGE ECHO LAYER ${level}`,
-      detail: `${Math.max(0, xpGoal - xp)} XP to go · collect crumbs, defeat foxes, and activate resonators`,
-      next,
-    };
-  }
-  return {
-    phase: 'gate',
-    title: `NEXT · ENTER ECHO LAYER ${next.level}`,
-    detail: `Foxfire Gate is ready · travel to the far right → ${next.name}`,
-    next,
-  };
+export function nextAdventureDirective(options = {}) {
+  return progressionDirective(options);
 }
 
 export class AdventureProgressionSystem {
@@ -46,6 +27,7 @@ export class AdventureProgressionSystem {
     this.engine = engine;
     this.lastState = null;
     this.renderQueued = false;
+    this.bossChargeTimer = null;
     this.originalSendState = engine.network.sendState;
     this.sendStateWrapper = (state, intervalMs) => this.originalSendState.call(engine.network, { ...state, ...this.#networkFields() }, intervalMs);
     engine.network.sendState = this.sendStateWrapper;
@@ -108,20 +90,23 @@ export class AdventureProgressionSystem {
   }
 
   #onMissionStarted() {
-    this.#disableLegacyBossGate();
     this.#restoreCrystals();
     const state = this.#state();
     this.#enforceExitLock(state);
     this.#updateRecords(state);
-    this.engine.ui.toast('Adventure progress saves automatically: awaken the crystals, earn Echo XP, then reach Foxfire Gate.', { type: 'success', duration: 4800 });
+    this.#maybeChargeBoss(state);
+    const message = bossTargetForLevel(state.level) === 0
+      ? 'Adventure progress saves automatically. Awaken crystals, earn Echo XP, then evolve at the gate. Breadstorm arrives in Echo Layer 2.'
+      : `Adventure progress saves automatically. Charge the Echo, defeat Breadstorm in ${BREADSTORM_ENCOUNTER.zone}, then evolve at the gate.`;
+    this.engine.ui.toast(message, { type: 'success', duration: 5200 });
     this.#queueRender();
   }
 
   #onEvolution(state = {}) {
     this.lastState = state;
-    this.#disableLegacyBossGate();
     this.#enforceExitLock(state);
     this.#updateRecords(state);
+    this.#maybeChargeBoss(state);
     this.#queueRender();
   }
 
@@ -156,28 +141,29 @@ export class AdventureProgressionSystem {
     }
   }
 
-  #disableLegacyBossGate() {
+  #onNetworkState() {
+    this.#maybeChargeBoss(this.#state());
+    this.#queueRender();
+  }
+
+  #maybeChargeBoss(state = this.#state()) {
+    if (this.bossChargeTimer) return;
     const world = this.#world();
     const evolution = world?.evolution;
     if (!evolution) return;
-
-    if (!evolution.__deedzSimpleProgression) {
-      evolution.__deedzSimpleProgression = true;
-      evolution.__legacyContributeFlockEnergy = evolution.contributeFlockEnergy?.bind(evolution);
-      evolution.contributeFlockEnergy = () => evolution.snapshot();
-    }
-
-    if (evolution.boss && !evolution.boss.destroyed) this.engine.entities.removeImmediate(evolution.boss);
-    evolution.boss = null;
-    if (evolution.shared) {
-      evolution.shared.flockEnergy = 0;
-      evolution.shared.boss = null;
-    }
-  }
-
-  #onNetworkState() {
-    this.#disableLegacyBossGate();
-    this.#queueRender();
+    const required = world.level?.requiredCrystals ?? 3;
+    const prerequisitesReady = this.#activeCrystals() >= required && Number(state.xp) >= Number(state.goal ?? evolutionGoal(state.level));
+    const bossRequired = Number(state.bossWins) < bossTargetForLevel(state.level);
+    if (!prerequisitesReady || !bossRequired || state.shared?.boss?.active) return;
+    const energy = Math.max(0, Number(state.shared?.flockEnergy) || 0);
+    const goal = Math.max(1, Number(state.shared?.flockGoal) || 180);
+    if (energy >= goal) return;
+    this.bossChargeTimer = setTimeout(() => {
+      this.bossChargeTimer = null;
+      const latest = this.#state();
+      const missing = Math.max(0, Number(latest.shared?.flockGoal) - Number(latest.shared?.flockEnergy));
+      if (missing > 0) evolution.contributeFlockEnergy(Math.min(30, missing), 'Echo Gate surge');
+    }, 160);
   }
 
   #activeCrystals() {
@@ -186,11 +172,13 @@ export class AdventureProgressionSystem {
 
   #enforceExitLock(state = this.#state()) {
     const world = this.#world();
-    if (!world?.exit) return;
+    if (!world?.levelExit) return;
     const required = world.level?.requiredCrystals ?? 3;
     const crystals = this.#activeCrystals();
     const xpReady = Number(state.xp) >= Number(state.goal ?? evolutionGoal(state.level));
-    world.exit.setLocked(crystals < required || !xpReady);
+    const bossRequired = Number(state.bossWins) < bossTargetForLevel(state.level);
+    const bossReady = !bossRequired;
+    world.levelExit.setLocked(crystals < required || !xpReady || !bossReady);
   }
 
   #updateRecords(state = this.#state()) {
@@ -246,6 +234,11 @@ export class AdventureProgressionSystem {
       level: state.level,
       xp: state.xp,
       xpGoal: state.goal ?? evolutionGoal(state.level),
+      bossWins: state.bossWins,
+      bossTarget: bossTargetForLevel(state.level),
+      flockEnergy: state.shared?.flockEnergy,
+      flockGoal: state.shared?.flockGoal,
+      boss: state.shared?.boss,
     });
 
     const hud = adventure.closest('.deedz-hud');
@@ -255,10 +248,15 @@ export class AdventureProgressionSystem {
     const evolution = document.querySelector?.('[data-evolution]');
     if (evolution) evolution.textContent = `Echo ${state.level} · ${state.stage?.name || 'Living World'} · ${state.xp}/${state.goal ?? evolutionGoal(state.level)} XP`;
 
+    const bossTarget = bossTargetForLevel(state.level);
+    const bossRequired = Number(state.bossWins) < bossTarget;
     const flock = document.querySelector?.('[data-flock]');
-    if (flock) { flock.hidden = true; flock.textContent = ''; }
+    if (flock) {
+      flock.hidden = !bossRequired;
+      flock.textContent = `Boss Charge ${state.shared?.flockEnergy ?? 0}/${state.shared?.flockGoal ?? 180}`;
+    }
     const boss = document.querySelector?.('[data-boss]');
-    if (boss) { boss.hidden = true; boss.textContent = ''; }
+    if (boss) boss.hidden = !bossRequired;
 
     const secondary = hud?.querySelector('.deedz-hud__group--secondary');
     let rank = secondary?.querySelector('[data-flock-rank]');
@@ -316,7 +314,10 @@ export class AdventureProgressionSystem {
       panel.querySelector('[data-actions]')?.before(card);
     }
     const next = nextEchoPreview(state.level);
-    card.innerHTML = `<div><span class="deedz-kicker">KEEP THE ADVENTURE MOVING</span><strong>Next: Echo Layer ${next.level} · ${next.name}</strong></div><p>Awaken crystals once, earn the displayed Echo XP, then reach Foxfire Gate. ${next.description}</p>`;
+    const route = bossTargetForLevel(state.level) === 0
+      ? 'Awaken crystals, earn the displayed Echo XP, then reach Foxfire Gate. Breadstorm makes his first appearance in Echo Layer 2.'
+      : `Awaken crystals, earn the displayed Echo XP, defeat Breadstorm in ${BREADSTORM_ENCOUNTER.zone}, then reach Foxfire Gate.`;
+    card.innerHTML = `<div><span class="deedz-kicker">KEEP THE ADVENTURE MOVING</span><strong>Next: Echo Layer ${next.level} · ${next.name}</strong></div><p>${route} ${next.description}</p>`;
   }
 
   #queueRender() {
@@ -333,6 +334,8 @@ export class AdventureProgressionSystem {
   }
 
   destroy() {
+    if (this.bossChargeTimer) clearTimeout(this.bossChargeTimer);
+    this.bossChargeTimer = null;
     for (const off of this.unsubscribers) off();
     this.unsubscribers = [];
     if (this.engine.network.sendState === this.sendStateWrapper) this.engine.network.sendState = this.originalSendState;

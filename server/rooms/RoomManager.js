@@ -1,3 +1,12 @@
+import {
+  breadstormHeartDamage,
+  breadstormPhaseShield,
+  breadstormPhaseShieldUnlocked,
+  breadstormShieldDamage,
+  breadstormShieldUnlocked,
+  breadstormStats,
+} from '../../src/shared/bossBalance.js';
+
 function cleanProfile(profile = {}) {
   return {
     name: String(profile.name || 'Anonymous Goose').trim().slice(0, 24) || 'Anonymous Goose',
@@ -33,9 +42,27 @@ function cleanWorldEvent(payload = {}) {
   const allowed = new Set(['enemy-hit', 'enemy-defeated', 'crystal-activated', 'flock-energy', 'boss-hit']);
   if (!allowed.has(event)) throw new Error('Unsupported world event');
   if (event === 'crystal-activated') return { event, crystalId: cleanId(payload.crystalId) };
-  if (event === 'flock-energy') return { event, amount: Math.max(1, Math.min(30, Math.floor(Number(payload.amount) || 1))), reason: String(payload.reason || 'Adventure').slice(0, 48) };
+  if (event === 'enemy-defeated') {
+    const cause = ['attack', 'peck', 'honk', 'dash', 'crumb', 'stomp', 'water', 'fall'].includes(payload.cause) ? payload.cause : 'combat';
+    return {
+      event,
+      enemyId: cleanId(payload.enemyId),
+      cause,
+      crumbCount: Math.max(0, Math.min(6, Math.floor(Number(payload.crumbCount) || 0))),
+    };
+  }
+  if (event === 'flock-energy') {
+    const evolutionLevel = Math.max(1, Math.min(999, Math.floor(Number(payload.evolutionLevel) || 2)));
+    return {
+      event,
+      amount: Math.max(1, Math.min(30, Math.floor(Number(payload.amount) || 1))),
+      reason: String(payload.reason || 'Adventure').slice(0, 48),
+      evolutionLevel,
+      bossCycle: Math.max(1, evolutionLevel - 1),
+    };
+  }
   if (event === 'boss-hit') {
-    const hitType = ['attack', 'honk', 'dash', 'crumb'].includes(payload.hitType) ? payload.hitType : 'attack';
+    const hitType = ['attack', 'peck', 'honk', 'dash', 'crumb'].includes(payload.hitType) ? payload.hitType : 'attack';
     return { event, bossId: cleanId(payload.bossId || 'baron-breadstorm'), damage: Math.max(1, Math.min(8, Number(payload.damage) || 1)), hitType };
   }
   return {
@@ -52,6 +79,13 @@ function createWorldState() {
 }
 
 function cloneBoss(boss) { return boss ? { ...boss } : null; }
+
+function sameEchoPlayers(room, clientId, evolutionLevel) {
+  const level = Math.max(1, Math.floor(Number(evolutionLevel) || 1));
+  return Math.max(1, [...(room?.values?.() ?? [])].filter((member) => (
+    member.id === clientId || !member.state || Number(member.state.evolutionLevel) === level
+  )).length);
+}
 
 export class RoomManager {
   constructor({ maxRoomSize = 64 } = {}) {
@@ -101,13 +135,19 @@ export class RoomManager {
     if (event.event === 'enemy-defeated' && event.enemyId) state.defeatedEnemies.add(event.enemyId);
 
     if (event.event === 'flock-energy') {
+      if (!state.boss?.active) {
+        state.bossWins = Math.max(state.bossWins, event.bossCycle - 1);
+        state.flockGoal = Math.min(900, 180 + state.bossWins * 45);
+      }
       if (!state.boss?.active) state.flockEnergy = Math.min(state.flockGoal, state.flockEnergy + event.amount);
       if (state.flockEnergy >= state.flockGoal && !state.boss?.active) {
-        const cycle = state.bossWins + 1;
-        const players = Math.max(1, room?.size ?? 1);
-        const maxHp = 34 + cycle * 10 + players * 6;
-        const maxShield = 4 + cycle + players * 2;
-        state.boss = { id: `baron-breadstorm-${cycle}`, active: true, defeated: false, hp: maxHp, maxHp, shield: maxShield, maxShield, phase: 1, cycle, spawnedAt: Date.now() };
+        const cycle = Math.max(state.bossWins + 1, event.bossCycle);
+        const players = sameEchoPlayers(room, client.id, event.evolutionLevel);
+        const evolutionLevel = event.evolutionLevel;
+        const shieldEnabled = breadstormShieldUnlocked(evolutionLevel);
+        const phaseShieldsEnabled = breadstormPhaseShieldUnlocked(evolutionLevel);
+        const { maxHp, maxShield } = breadstormStats({ cycle, players, evolutionLevel });
+        state.boss = { id: `baron-breadstorm-${cycle}`, active: true, defeated: false, hp: maxHp, maxHp, shield: maxShield, maxShield, shieldEnabled, phaseShieldsEnabled, evolutionLevel, players, phase: 1, cycle, spawnedAt: Date.now() };
       }
       this.worldStates.set(roomId, state);
       return { ...event, flockEnergy: state.flockEnergy, flockGoal: state.flockGoal, bossWins: state.bossWins, boss: cloneBoss(state.boss) };
@@ -120,24 +160,29 @@ export class RoomManager {
       if (boss?.active && !boss.defeated) {
         if (boss.shield > 0) {
           if (event.hitType === 'honk') {
-            shieldDamage = Math.min(boss.shield, Math.ceil(event.damage * 2));
+            shieldDamage = Math.min(boss.shield, breadstormShieldDamage(event.damage));
             boss.shield = Math.max(0, boss.shield - shieldDamage);
           }
         } else {
-          damageApplied = Math.min(boss.hp, event.damage);
+          damageApplied = Math.min(boss.hp, breadstormHeartDamage(event.damage));
           boss.hp = Math.max(0, boss.hp - damageApplied);
           const ratio = boss.hp / Math.max(1, boss.maxHp);
           const nextPhase = ratio <= 0.33 ? 3 : ratio <= 0.66 ? 2 : 1;
           if (nextPhase > boss.phase && boss.hp > 0) {
             boss.phase = nextPhase;
-            boss.maxShield = 3 + boss.phase * 2 + Math.max(1, room?.size ?? 1);
+            boss.maxShield = breadstormPhaseShield({
+              phase: boss.phase,
+              cycle: boss.cycle,
+              evolutionLevel: boss.evolutionLevel,
+              phaseShieldsEnabled: boss.phaseShieldsEnabled ?? breadstormPhaseShieldUnlocked(boss.evolutionLevel),
+            });
             boss.shield = boss.maxShield;
           }
           if (boss.hp <= 0) {
             boss.active = false;
             boss.defeated = true;
             boss.defeatedAt = Date.now();
-            state.bossWins += 1;
+            state.bossWins = Math.max(state.bossWins + 1, boss.cycle);
             state.flockEnergy = 0;
             state.flockGoal = Math.min(900, 180 + state.bossWins * 45);
           }

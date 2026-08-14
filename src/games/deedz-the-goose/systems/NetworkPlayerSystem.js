@@ -38,7 +38,7 @@ export class NetworkPlayerSystem {
       remote = new RemoteGoose({ id, profile, state });
       this.remotes.set(id, remote);
       this.engine.entities.add(remote, this.parent);
-    }
+    } else remote.applyProfile(profile);
     return remote;
   }
 

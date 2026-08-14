@@ -41,7 +41,7 @@ export class Hazard extends Entity {
     this.x = x + width / 2;
     this.y = y + height / 2;
     this.type = type;
-    this.collider = new Collider(this, { width, height, trigger: true, layer: 64, mask: 1 });
+    this.collider = new Collider(this, { width, height, trigger: true, layer: 64, mask: 5 });
     this.surface = new Graphics();
     const color = type === 'thorns' ? 0xb94cff : 0x2377a5;
     this.surface.rect(-width / 2, -height / 2, width, height).fill({ color, alpha: 0.72 });

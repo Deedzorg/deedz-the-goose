@@ -58,6 +58,8 @@ export class BreadstormBoss extends Entity {
     this.maxShield = Number(state.maxShield) || this.shield;
     this.phase = Number(state.phase) || 1;
     this.cycle = Number(state.cycle) || 1;
+    this.evolutionLevel = Math.max(2, Number(state.evolutionLevel) || this.cycle + 1);
+    this.players = Math.max(1, Number(state.players) || 1);
     this.activeFight = state.active !== false;
     this.spawnedAt = Number(state.spawnedAt) || Date.now();
     this.direction = -1;
@@ -115,7 +117,8 @@ export class BreadstormBoss extends Entity {
     this.healthBar.roundRect(-88, 4, 176 * healthRatio, 8, 4).fill(this.phase >= 3 ? 0xff5f67 : this.phase === 2 ? 0xffa24c : 0xffd95a);
     if (this.shield > 0) this.healthBar.roundRect(-88, 18, 176 * Math.min(1, this.shield / Math.max(1, this.maxShield)), 5, 3).fill(0x55d6ff);
     this.shieldArt.visible = this.shield > 0;
-    this.phaseText.text = `PHASE ${['I', 'II', 'III'][Math.min(2, Math.max(0, this.phase - 1))]} · CYCLE ${this.cycle}`;
+    const flock = this.players > 1 ? ` · ${this.players} GEESE` : '';
+    this.phaseText.text = `PHASE ${['I', 'II', 'III'][Math.min(2, Math.max(0, this.phase - 1))]} · FORM ${this.cycle}${flock}`;
   }
 
   applySharedState(state = {}) {
@@ -126,6 +129,8 @@ export class BreadstormBoss extends Entity {
     this.maxShield = Math.max(0, Number(state.maxShield ?? this.maxShield));
     this.phase = Math.max(1, Math.min(3, Number(state.phase ?? this.phase)));
     this.cycle = Math.max(1, Number(state.cycle ?? this.cycle));
+    this.evolutionLevel = Math.max(2, Number(state.evolutionLevel ?? this.evolutionLevel));
+    this.players = Math.max(1, Number(state.players ?? this.players));
     this.spawnedAt = Number(state.spawnedAt ?? this.spawnedAt) || Date.now();
     this.activeFight = state.active !== false && !state.defeated;
     if (this.phase !== previousPhase) {
@@ -174,15 +179,16 @@ export class BreadstormBoss extends Entity {
       this.aura.scale.set(1 + Math.sin(this.stateTime * 18) * 0.18);
       if (this.stateTime > 1.0) this.#setState('stalk');
     } else if (this.attackTimer <= 0) {
-      if (this.phase === 1) {
+      const attackTier = Math.max(0, Math.floor((this.evolutionLevel - 2) / 2));
+      if (this.phase === 1 || attackTier === 0) {
         engine.entities.add(new HonkPulse({ x: this.x, y: this.y, facing: this.direction, radius: 275, color: 0xffd95a, label: 'CROWN CHARGE!' }), this.display.parent);
-        if (distance(this.x, this.y, player.x, player.y) <= 235) {
+        if (distance(this.x, this.y, player.x, player.y) <= (attackTier === 0 ? 205 : 235)) {
           player.takeDamage?.(1, this, engine);
           player.applyHonkImpulse?.({ x: this.x, y: this.y, strength: 520 }, engine);
         }
-        this.attackTimer = 1.45;
+        this.attackTimer = attackTier === 0 ? 1.75 : 1.3;
       } else {
-        this.#chooseAttack(player, engine);
+        this.#chooseAttack(player, engine, attackTier);
       }
     }
 
@@ -196,10 +202,10 @@ export class BreadstormBoss extends Entity {
     this.aura.alpha = 0.7 + Math.sin(sharedTime * 5) * 0.2;
   }
 
-  #chooseAttack(player, engine) {
+  #chooseAttack(player, engine, attackTier = 1) {
     const roll = Math.random();
     if (roll < (this.phase === 3 ? 0.62 : 0.78)) {
-      const bombCount = this.phase === 3 ? 5 : 3;
+      const bombCount = attackTier === 1 ? 2 : this.phase === 3 ? 6 : 4;
       for (let index = 0; index < bombCount; index += 1) {
         engine.entities.add(new BreadBomb({
           x: this.x + this.direction * 40,
@@ -209,7 +215,7 @@ export class BreadstormBoss extends Entity {
           phase: this.phase,
         }), this.display.parent);
       }
-      this.attackTimer = this.phase === 3 ? 1.15 : 1.55;
+      this.attackTimer = attackTier === 1 ? 2 : this.phase === 3 ? 1.15 : 1.55;
       this.#setState('stalk');
       return;
     }
@@ -224,6 +230,7 @@ export class BreadstormBoss extends Entity {
     }), this.display.parent);
     if (distance(this.x, this.y, player.x, player.y) <= (this.phase === 3 ? 390 : 320)) {
       player.applyHonkImpulse?.({ x: this.x, y: this.y, strength: this.phase === 3 ? 780 : 650 }, engine);
+      if (distance(this.x, this.y, player.x, player.y) <= (this.phase === 3 ? 285 : 235)) player.takeDamage?.(1, this, engine);
     }
     this.attackTimer = this.phase === 3 ? 1.2 : 1.45;
     this.#setState('stalk');

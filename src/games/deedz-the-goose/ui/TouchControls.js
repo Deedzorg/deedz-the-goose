@@ -10,14 +10,13 @@ export function shouldShowTouchControls({ mode = 'auto', touchCapable = false, g
   return Boolean(touchCapable && !gamepadConnected);
 }
 
-const BUTTONS = Object.freeze([
+export const TOUCH_ACTIONS = Object.freeze([
   ['jump', 'FLAP'],
   ['attack', 'WHAP'],
+  ['peck', 'PECK'],
   ['throw', 'CRUMB'],
   ['honk', 'HONK'],
   ['dash', 'DASH'],
-  ['interact', 'BUMP'],
-  ['sense', 'SENSE'],
 ]);
 
 export class TouchControls {
@@ -41,7 +40,7 @@ export class TouchControls {
       <div class="deedz-touch-actions" aria-label="Action controls"></div>`;
 
     const actions = this.root.querySelector('.deedz-touch-actions');
-    for (const [action, label] of BUTTONS) {
+    for (const [action, label] of TOUCH_ACTIONS) {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = `deedz-touch-button deedz-touch-button--${action}`;

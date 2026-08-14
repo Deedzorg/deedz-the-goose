@@ -17,6 +17,9 @@
 .deedz-class-card small { margin-top:2px; color:var(--muted); font-size:.72rem; }
 .deedz-class-card:hover,.deedz-class-card:focus-visible,.deedz-class-card[aria-pressed="true"] { outline:none; border-color:var(--accent-2); background:rgba(85,214,255,.13); transform:translateY(-1px); }
 .deedz-class-card[aria-pressed="true"] { box-shadow:inset 0 0 0 1px rgba(85,214,255,.25); }
+.deedz-class-card.is-locked { opacity:.58; border-style:dashed; background:rgba(10,20,35,.58); cursor:not-allowed; }
+.deedz-class-card.is-locked:hover,.deedz-class-card.is-locked:focus-visible { border-color:#ffd95a; background:rgba(255,217,90,.08); transform:none; }
+.deedz-class-card.is-locked small { color:#ffd95a; }
 .deedz-class-detail { min-height:250px; padding:16px; border:1px solid rgba(85,214,255,.22); border-radius:16px; background:linear-gradient(145deg,rgba(85,214,255,.07),rgba(255,255,255,.025)); }
 .deedz-class-detail__header { display:flex; align-items:center; gap:13px; margin-bottom:10px; }
 .deedz-class-detail__header strong,.deedz-class-detail__header span { display:block; }

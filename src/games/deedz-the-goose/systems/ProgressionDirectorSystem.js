@@ -128,11 +128,11 @@ export class ProgressionDirectorSystem {
 
   #enforceExitLock(state = this.#state()) {
     const world = this.#world();
-    if (!world?.exit) return;
+    if (!world?.levelExit) return;
     const required = world.level?.requiredCrystals ?? 3;
     const crystals = this.#activeCrystals();
     const bossActive = Boolean(state.shared?.boss?.active && !state.shared?.boss?.defeated);
-    world.exit.setLocked(crystals < required || Number(state.xp) < Number(state.goal) || bossActive || !this.#bossGateComplete(state));
+    world.levelExit.setLocked(crystals < required || Number(state.xp) < Number(state.goal) || bossActive || !this.#bossGateComplete(state));
   }
 
   #updateRecords(state = this.#state()) {

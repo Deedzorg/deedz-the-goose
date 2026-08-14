@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { WebSocket } from 'ws';
 import { createDeedzServer } from '../server/index.js';
+import { localNetworkEventName } from '../src/engine/networking/NetworkManager.js';
 
 function waitForMessage(socket, type, predicate = () => true) {
   return new Promise((resolve, reject) => {
@@ -22,6 +23,11 @@ function waitForMessage(socket, type, predicate = () => true) {
     socket.on('message', onMessage);
   });
 }
+
+test('client world-event messages bridge to the gameplay event name', () => {
+  assert.equal(localNetworkEventName('world:event'), 'net:world-event');
+  assert.equal(localNetworkEventName('peer-join'), 'net:peer-join');
+});
 
 async function connect(url) {
   const socket = new WebSocket(url);

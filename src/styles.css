@@ -196,15 +196,16 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 }
 .deedz-touch-actions {
   position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom));
-  width: min(48vw, 310px); display: grid; grid-template-columns: repeat(4, minmax(54px, 1fr)); gap: 8px; align-items: end; pointer-events: auto;
+  width: min(44vw, 240px); display: grid; grid-template-columns: repeat(3, minmax(52px, 1fr)); gap: 6px; align-items: end; pointer-events: auto;
 }
 .deedz-touch-button {
-  min-width: 58px; min-height: 58px; padding: 7px; border: 1px solid rgba(255,255,255,.24); border-radius: 20px;
+  min-width: 52px; min-height: 54px; padding: 6px; border: 1px solid rgba(255,255,255,.24); border-radius: 18px;
   color: #fff; background: rgba(7,17,31,.66); box-shadow: 0 8px 28px rgba(0,0,0,.28); backdrop-filter: blur(8px);
   font: 900 .72rem/1 system-ui, sans-serif; letter-spacing: .035em; pointer-events: auto; touch-action: none;
 }
-.deedz-touch-button--jump { min-height: 76px; grid-row: span 2; background: rgba(85,214,255,.25); border-color: rgba(85,214,255,.58); }
+.deedz-touch-button--jump { background: rgba(85,214,255,.25); border-color: rgba(85,214,255,.58); }
 .deedz-touch-button--throw { background: rgba(255,217,90,.2); border-color: rgba(255,217,90,.5); }
+.deedz-touch-button--peck { background: rgba(255,166,43,.2); border-color: rgba(255,166,43,.55); }
 .deedz-touch-button--honk { background: rgba(200,149,255,.2); border-color: rgba(200,149,255,.5); }
 .deedz-touch-button--pause { min-width: 48px; min-height: 48px; border-radius: 16px; font-size: 1.05rem; }
 .deedz-touch-button.is-active { transform: scale(.93); color: #07111f; background: var(--accent); border-color: transparent; }
@@ -219,7 +220,48 @@ canvas { display: block; width: 100%; height: 100%; touch-action: none; }
   .deedz-hud__group--secondary .deedz-chip--boss,
   .deedz-hud__group--secondary .deedz-chip--network { display: none; }
   .deedz-touch-pad { grid-template-columns: repeat(3, 54px); }
-  .deedz-touch-actions { width: min(50vw, 250px); grid-template-columns: repeat(3, minmax(50px, 1fr)); }
+  .deedz-touch-actions { width: min(48vw, 210px); grid-template-columns: repeat(3, minmax(48px, 1fr)); }
   .deedz-touch-button { min-width: 50px; min-height: 52px; font-size: .64rem; border-radius: 17px; }
   .deedz-select-setting { grid-template-columns: 1fr; }
+}
+
+.deedz-mobile-fullscreen-tip { display: none; }
+
+@media (pointer: coarse), (max-width: 760px) {
+  .deedz-mobile-fullscreen-tip {
+    display: block; margin: -12px 0 16px; color: #d8f8ff; font-size: .74rem; line-height: 1.35;
+  }
+  .deedz-toast-stack {
+    top: max(54px, env(safe-area-inset-top)); right: auto; bottom: auto; left: 50%;
+    width: min(280px, calc(100% - 24px)); gap: 5px; transform: translateX(-50%); pointer-events: none;
+  }
+  .deedz-toast { padding: 7px 9px; border-radius: 10px; font-size: .72rem; line-height: 1.25; box-shadow: 0 7px 20px rgba(0,0,0,.26); }
+  .deedz-toast:nth-last-child(n + 3) { display: none; }
+}
+
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 650px) {
+  .deedz-screen[data-screen="main-menu-ui"],
+  .deedz-screen[data-screen="pause-ui"] {
+    place-items: start center;
+    padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    overscroll-behavior: contain;
+  }
+  .deedz-launch-panel,
+  .deedz-panel--mission { margin: 0 auto; }
+  .deedz-screen[data-screen="pause-ui"] .deedz-panel--mission { padding: 16px; }
+  .deedz-screen[data-screen="pause-ui"] .deedz-kicker { margin-bottom: 5px; }
+  .deedz-screen[data-screen="pause-ui"] .deedz-title { margin-bottom: 4px; font-size: 2rem; }
+  .deedz-screen[data-screen="pause-ui"] .deedz-menu-hint { margin: 0 0 8px; }
+  .deedz-screen[data-screen="pause-ui"] .deedz-tabs { margin: 8px 0; }
+  .deedz-screen[data-screen="pause-ui"] .deedz-tab-panel { max-height: none; }
+  .deedz-touch-pad {
+    left: max(10px, env(safe-area-inset-left)); bottom: max(9px, env(safe-area-inset-bottom));
+    grid-template-columns: repeat(3, 48px); gap: 5px;
+  }
+  .deedz-touch-actions {
+    right: max(10px, env(safe-area-inset-right)); bottom: max(9px, env(safe-area-inset-bottom));
+    width: min(41vw, 200px); gap: 5px;
+  }
+  .deedz-touch-button { min-width: 46px; min-height: 46px; padding: 5px; border-radius: 15px; font-size: .58rem; }
+  .deedz-touch-button--pause { min-width: 42px; min-height: 42px; }
 }

@@ -7,3 +7,13 @@
 .deedz-settings--stacked .deedz-toggle span { order:1; font-weight:800; }
 .deedz-settings--stacked .deedz-toggle:focus-within,.deedz-control-row:focus-within,.deedz-slider:focus-within { border-color:var(--accent-2); box-shadow:0 0 0 3px rgba(85,214,255,.12); }
 @media (max-width:760px) { .deedz-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); } .deedz-tab-panels { padding:12px; } }
+
+@media (pointer:coarse) and (orientation:landscape) and (max-height:650px) {
+  .deedz-tabs { grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; padding:4px; }
+  .deedz-tab { min-height:38px; padding:6px 8px; font-size:.78rem; }
+  .deedz-tab-panels { padding:9px; border-radius:14px; }
+  .deedz-tab-panel > .deedz-subtitle { margin-bottom:8px; font-size:.82rem; }
+  .deedz-pause-summary { margin:7px 0 9px; padding:9px 11px; font-size:.78rem; }
+  .deedz-actions--horizontal { gap:7px; }
+  .deedz-actions--horizontal .deedz-button { min-height:42px; padding:8px 10px; font-size:.78rem; }
+}

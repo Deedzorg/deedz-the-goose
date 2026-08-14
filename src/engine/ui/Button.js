@@ -11,6 +11,6 @@ export class Button {
   }
   setDisabled(disabled) { this.element.disabled = Boolean(disabled); }
   setLabel(label) { this.element.textContent = label; }
-  focus() { this.element.focus(); }
+  focus(options) { this.element.focus(options); }
   destroy() { if (this._onClick) this.element.removeEventListener('click', this._onClick); this.element.remove(); }
 }

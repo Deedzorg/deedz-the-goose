@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveSafeSpawn } from '../src/games/deedz-the-goose/systems/WorldSafetySystem.js';
-import { shouldShowTouchControls } from '../src/games/deedz-the-goose/ui/TouchControls.js';
+import { shouldShowTouchControls, TOUCH_ACTIONS } from '../src/games/deedz-the-goose/ui/TouchControls.js';
 import { adaptiveMusicProfile } from '../src/engine/audio/MusicSystem.js';
 import { cloneDefaultInputBindings } from '../src/engine/input/InputMap.js';
 import { chargedThrowProfile } from '../src/games/deedz-the-goose/data/throwing.js';
+import { enterMobileFullscreen, isMobilePlayEnvironment } from '../src/games/deedz-the-goose/data/mobileDisplay.js';
 
 function platform(x, y, width, height) {
   return { collider: { enabled: true, left: x, right: x + width, top: y, bottom: y + height, width, height } };
@@ -28,10 +29,34 @@ test('mobile controls auto-hide for controller players but can be forced', () =>
   assert.equal(shouldShowTouchControls({ mode: 'off', touchCapable: true, gamepadConnected: false, worldActive: true }), false);
 });
 
-test('LT is assigned to Flock Sense while RB remains dash', () => {
+test('LT remains Flock Sense while RB flaps and RT dashes', () => {
   const controls = cloneDefaultInputBindings();
-  assert.ok(controls.dash.some((binding) => binding.type === 'gamepad-button' && binding.button === 5));
+  assert.ok(controls.jump.some((binding) => binding.type === 'gamepad-button' && binding.button === 5));
+  assert.ok(controls.dash.some((binding) => binding.type === 'gamepad-button' && binding.button === 7));
   assert.ok(controls.sense.some((binding) => binding.type === 'gamepad-button' && binding.button === 6));
+});
+
+test('phone HUD keeps the six core play actions and removes utility-only buttons', () => {
+  const actions = TOUCH_ACTIONS.map(([action]) => action);
+  assert.deepEqual(actions, ['jump', 'attack', 'peck', 'throw', 'honk', 'dash']);
+  assert.equal(actions.includes('sense'), false);
+  assert.equal(actions.includes('interact'), false);
+});
+
+test('touch play requests fullscreen without blocking unsupported browsers', async () => {
+  let calls = 0;
+  const environment = {
+    navigator: { maxTouchPoints: 2 },
+    matchMedia: () => ({ matches: false }),
+    document: {
+      fullscreenElement: null,
+      documentElement: { async requestFullscreen() { calls += 1; } },
+    },
+  };
+  assert.equal(isMobilePlayEnvironment(environment), true);
+  assert.equal(await enterMobileFullscreen(environment), true);
+  assert.equal(calls, 1);
+  assert.equal(await enterMobileFullscreen({ navigator: {}, document: { documentElement: {} } }), false);
 });
 
 test('v1.6 generative score adds orchestration as layers and boss intensity rise', () => {

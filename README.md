@@ -5,6 +5,8 @@
 
 A reusable, plugin-friendly JavaScript browser-game engine built for **Deedz The Goose** and future Deedz Corp games. It uses PixiJS 8, Vite, Express, WebSockets, and the Web Audio API.
 
+The canonical names for player actions, progression systems, enemy archetypes, and evolving-world features live in [docs/GAMEPLAY_MECHANICS.md](docs/GAMEPLAY_MECHANICS.md).
+
 Version 1.6 is the **Mobile Symphony** update. It repairs pause-menu mission restarts, upgrades the evolving soundtrack into a layered generative score, improves fast-tap throwing responsiveness, adds automatic on-screen mobile controls, gives LT a new Flock Sense ability, and cleans the gameplay HUD without removing multiplayer interaction.
 
 ## Requirements
@@ -65,7 +67,9 @@ Fast keyboard and touch taps are now preserved even when press and release both 
 
 Touch-capable devices receive on-screen controls automatically when no controller is connected. The Settings tab offers **Auto**, **Always on**, and **Off** modes. Auto mode hides the overlay as soon as a gamepad is detected, allowing mobile players to switch cleanly to a controller.
 
-The default controller layout now keeps **RB for Dash** and assigns **LT to Flock Sense**. Hold Flock Sense to reveal nearby collectibles, Echo Crystals, Resonators, Bread Foxes, checkpoints, bosses, and connected geese.
+The compact phone layout keeps the six core actions visible: **Flap, Wing Whap, Peck, Crumb, Honk, and Dash**. Flock Sense and Wing-Bump remain available on keyboard/controller. Starting from a touch device requests browser fullscreen, and the installable web-app manifest provides a browser-free landscape view when the game is added to a Home Screen.
+
+The default controller layout uses **RB for Flap**, **RT for Dash**, **A for Wing Whap**, and **Y for Peck**, while **LT remains Flock Sense**. Hold Flock Sense to reveal nearby collectibles, Echo Crystals, Resonators, Bread Foxes, checkpoints, bosses, and connected geese.
 
 ### Cleaner interface
 
@@ -144,7 +148,11 @@ The generator remains deterministic: the same player seed, layer, and cycle prod
 
 ### Wing Whap
 
-The close-range attack remains available through `J` or right trigger by default. It is effective against nearby Bread Foxes and against Baron Breadstorm after his Echo Shield breaks.
+The wide close-range attack remains available through `J` or controller A by default. It can hit several nearby Bread Foxes and damage Baron Breadstorm after his Echo Shield breaks.
+
+### Peck
+
+Press `K` or controller Y for a quick, precise beak strike. Peck now has a more forgiving reach, lunge, and hit reaction. It still has less range and knockback than Wing Whap and only hits the nearest target, but it recovers faster.
 
 ### Throwable crumbs
 
@@ -218,13 +226,14 @@ The default controls are:
 |---|---|---|
 | Move | `A/D`, arrows | Left stick |
 | Crouch-walk / descend | `S`, down arrow | Left stick down |
-| Triple jump / glide | `Space` | A |
-| Wing Whap | `J` | Right trigger |
+| Triple jump / glide | `Space` | Right bumper |
+| Wing Whap | `J` | A |
+| Peck | `K` | Y |
 | Charge and throw crumb | Tap/hold `X` | Tap/hold X |
 | Honk | `H` | B |
-| Dash | `Left Shift` | Right bumper |
+| Dash | `Left Shift` | Right trigger |
 | Flock Sense | `Q` | Left trigger |
-| Wing-bump / interact | `E` | Y |
+| Wing-bump / interact | `E` | Left bumper |
 | Pause / Mission Control | `Escape` | Menu |
 | Diagnostics | `F3` | Unbound |
 
@@ -245,16 +254,20 @@ Each player keeps persistent:
 - Collectible and crumb-ammunition totals
 - Custom input bindings
 
-When the personal meter is full, returning to Foxfire Gate evolves the world without ending the game.
+Echo Layer 1 is a welcoming exploration run: awaken the crystals, fill Echo XP, and reach Foxfire Gate without a boss fight. Echo Layer 2 introduces Baron Breadstorm in Moonwater Ravine as a one-heart form with no shield. Each later Echo adds one heart. His opening Echo Shield arrives at Echo Layer 5, while phase-restoring shields wait until Echo Layer 7.
+
+Jumping squarely onto a Bread Fox instantly defeats it and bounces the goose upward. Foxes also lose when knocked into water or an open fall. Each defeated fox scatters two to four collectible bread crumbs based on its rank.
+
+Guardian Goose and Ember Goose remain visible in the class picker but begin locked. Reaching Echo Layer 10 permanently makes both advanced choices available through the player's saved progression.
 
 ### Shared Flock Crisis
 
-Adventure actions contribute bounded Flock Energy to the current multiplayer room. When the room meter reaches its goal, **Baron Breadstorm** invades Foxfire Fortress for everyone connected to that server instance.
+Beginning in Echo Layer 2, adventure actions contribute bounded Flock Energy to the current multiplayer room. When the room meter reaches its goal, **Baron Breadstorm** invades Moonwater Ravine near the center of the map. Geese on the same Echo Layer contribute to the same fight, and extra teammates do not increase his hearts.
 
 Shared room state includes:
 
 - Player presence, profile, movement, and Echo Layer level
-- Honk, Wing Whap, crumb throw, dash, wing-bump, and evolution reactions
+- Honk, Wing Whap, Peck, crumb throw, dash, wing-bump, and evolution reactions
 - Activated Echo Crystals and defeated shared Bread Foxes
 - Flock Energy and its current goal
 - Baron Breadstorm health, shield, phase, cycle, and victory count
@@ -267,12 +280,12 @@ Room state is process-local and resets when the final player leaves or the serve
 The boss remains server-coordinated so every connected player sees the same health, shield, phase, and victory result.
 
 ```text
-Phase I   Crowned charges and close-range pressure
-Phase II  Faster pursuit, renewed Echo Shield, explosive toast rain
-Phase III Breadstorm honk waves, larger toast volleys, final frenzy
+Early forms  Slow crowned charges that teach the fight safely
+Mid forms    Small toast volleys and an opening Echo Shield
+Deep forms   Honk waves, larger volleys, and phase-restoring shields
 ```
 
-Baron Breadstorm's Echo Shield can only be damaged by honking. Wing Whaps and thrown crumbs become effective once the shield falls. Each new phase restores a stronger shield.
+The Echo Layer 2 introductory fight has one heart and no shield, so Peck, Wing Whap, Honk, and thrown crumbs work immediately. Every ordinary successful hit removes one heart. Beginning in Echo Layer 5, Baron Breadstorm's opening Echo Shield can only be damaged by honking. Phase-restoring shields begin at Echo Layer 7, giving younger and first-time players several runs to learn the encounter before its full mechanics arrive.
 
 Offline play remains supported. Without a WebSocket connection, Flock Energy and the boss simulation run locally.
 
@@ -304,7 +317,7 @@ The stable base map keeps remote players spatially meaningful. Each personal Ech
 
 ## Save migration
 
-Version 1.6 uses save schema version 6. Existing v1.4 saves migrate automatically and add:
+Version 1.6 uses save schema version 7. Existing v1.4 saves migrate automatically and add:
 
 ```js
 settings.musicVolume = 0.55;

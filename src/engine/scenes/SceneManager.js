@@ -53,7 +53,14 @@ export class SceneManager {
     this.transitioning = true;
     this.events.emit('scene:transitionStart', { type: 'change', id, data });
     try {
-      while (this.stack.length) await this.#dispose(this.stack.pop());
+      // Leave a scene on the stack until its cleanup finishes. If cleanup
+      // fails, the engine can resume that surviving scene instead of running
+      // physics with an empty stack.
+      while (this.stack.length) {
+        const scene = this.stack.at(-1);
+        await this.#dispose(scene);
+        this.stack.pop();
+      }
       const scene = await this.#create(id, data);
       this.stack.push(scene);
       this.engine.renderer.layers.get('world').addChild(scene.root);
@@ -61,6 +68,11 @@ export class SceneManager {
       this.events.emit('scene:changed', { id, scene, depth: this.depth });
       return scene;
     } catch (error) {
+      const survivor = this.active;
+      if (survivor && !survivor.active) {
+        survivor.resume?.({ transitionFailed: true, destination: id });
+        if (survivor.root) survivor.root.visible = true;
+      }
       this.events.emit('scene:error', { type: 'change', id, error });
       throw error;
     } finally {

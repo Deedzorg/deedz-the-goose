@@ -55,6 +55,7 @@ export class UIManager {
     toast.className = `deedz-toast deedz-toast--${type}`;
     toast.textContent = message;
     this.toastStack.appendChild(toast);
+    while (this.toastStack.children.length > 4) this.toastStack.firstElementChild?.remove();
     const timer = setTimeout(() => { toast.remove(); this.toastTimers.delete(timer); }, duration);
     this.toastTimers.add(timer);
     return toast;

@@ -28,17 +28,35 @@ export const DEFAULT_INPUT_BINDINGS = Object.freeze({
   right: [{ type: 'key', code: 'KeyD' }, { type: 'key', code: 'ArrowRight' }, { type: 'gamepad-axis', axis: 0, direction: 1 }],
   up: [{ type: 'key', code: 'KeyW' }, { type: 'key', code: 'ArrowUp' }, { type: 'gamepad-axis', axis: 1, direction: -1 }],
   down: [{ type: 'key', code: 'KeyS' }, { type: 'key', code: 'ArrowDown' }, { type: 'gamepad-axis', axis: 1, direction: 1 }],
-  jump: [{ type: 'key', code: 'Space' }, { type: 'gamepad-button', button: 0 }],
-  attack: [{ type: 'key', code: 'KeyJ' }, { type: 'gamepad-button', button: 7 }],
+  jump: [{ type: 'key', code: 'Space' }, { type: 'gamepad-button', button: 5 }],
+  attack: [{ type: 'key', code: 'KeyJ' }, { type: 'gamepad-button', button: 0 }],
+  peck: [{ type: 'key', code: 'KeyK' }, { type: 'gamepad-button', button: 3 }],
   throw: [{ type: 'key', code: 'KeyX' }, { type: 'gamepad-button', button: 2 }],
   honk: [{ type: 'key', code: 'KeyH' }, { type: 'gamepad-button', button: 1 }],
-  dash: [{ type: 'key', code: 'ShiftLeft' }, { type: 'gamepad-button', button: 5 }],
+  dash: [{ type: 'key', code: 'ShiftLeft' }, { type: 'gamepad-button', button: 7 }],
   sense: [{ type: 'key', code: 'KeyQ' }, { type: 'gamepad-button', button: 6 }],
-  interact: [{ type: 'key', code: 'KeyE' }, { type: 'gamepad-button', button: 3 }],
+  interact: [{ type: 'key', code: 'KeyE' }, { type: 'gamepad-button', button: 4 }],
   pause: [{ type: 'key', code: 'Escape' }, { type: 'gamepad-button', button: 9 }],
   debug: [{ type: 'key', code: 'F3' }],
 });
 
 export function cloneDefaultInputBindings() {
   return Object.fromEntries(Object.entries(DEFAULT_INPUT_BINDINGS).map(([action, list]) => [action, list.map((binding) => ({ ...binding }))]));
+}
+
+const LEGACY_GAMEPAD_DEFAULTS = Object.freeze({ jump: 0, attack: 7, dash: 5, interact: 3 });
+
+export function migrateDefaultControllerLayout(bindings = {}) {
+  const migrated = Object.fromEntries(Object.entries(bindings ?? {}).map(([action, list]) => [
+    action,
+    Array.isArray(list) ? list.map((binding) => ({ ...binding })) : [],
+  ]));
+  for (const [action, oldButton] of Object.entries(LEGACY_GAMEPAD_DEFAULTS)) {
+    const replacement = DEFAULT_INPUT_BINDINGS[action].find((binding) => binding.type === 'gamepad-button');
+    migrated[action] = (migrated[action] ?? []).map((binding) => (
+      binding.type === 'gamepad-button' && binding.button === oldButton ? { ...replacement } : binding
+    ));
+  }
+  if (!migrated.peck?.length) migrated.peck = DEFAULT_INPUT_BINDINGS.peck.map((binding) => ({ ...binding }));
+  return { ...cloneDefaultInputBindings(), ...migrated };
 }

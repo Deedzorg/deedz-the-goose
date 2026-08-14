@@ -7,6 +7,16 @@ import { WingBurst } from '../entities/ActionEffects.js';
 import { EchoResonator, Scenery } from '../entities/AdventureObjects.js';
 import { collectibleDefinition, collectibleXpValue } from '../data/collectibles.js';
 import {
+  breadstormHeartDamage,
+  breadstormPhaseShield,
+  breadstormPhaseShieldUnlocked,
+  breadstormShieldDamage,
+  breadstormShieldUnlocked,
+  breadstormStats,
+} from '../../../shared/bossBalance.js';
+import { BREADSTORM_ENCOUNTER, bossTargetForLevel } from '../data/progression.js';
+import { ADVANCED_GOOSE_UNLOCK_LEVEL, advancedGooseUnlocks } from '../data/characters.js';
+import {
   createEvolutionSeed,
   evolutionGoal,
   generateEvolutionLayout,
@@ -43,6 +53,8 @@ export class WorldEvolutionSystem {
       boss: null,
       ...(engine.network.worldState ?? {}),
     };
+    this.shared.bossWins = Math.max(Number(this.shared.bossWins) || 0, this.state.bossWins);
+    this.shared.flockGoal = Math.max(Number(this.shared.flockGoal) || 180, Math.min(900, 180 + this.state.bossWins * 45));
     this.#createAtmosphere();
     this.#applyLayer({ announce: false });
     this.applySharedState(this.shared);
@@ -122,10 +134,16 @@ export class WorldEvolutionSystem {
     this.#persist();
     this.engine.events.emit('evolution:xp', { amount: gain, reason, state: this.snapshot() });
     if (!wasReady && this.ready) {
-      this.engine.ui.toast(`Echo Layer ready to evolve! Reach the Foxfire Gate.`, { type: 'success', duration: 3600 });
+      const bossRequired = this.state.bossWins < bossTargetForLevel(this.state.level);
+      this.engine.ui.toast(
+        bossRequired
+          ? `Echo Layer charged! Breadstorm is invading ${BREADSTORM_ENCOUNTER.zone}.`
+          : 'Echo Layer charged! The Foxfire Gate can now evolve the world.',
+        { type: 'success', duration: 4200 },
+      );
       this.engine.audio.sfx.tone({ frequency: 420, slide: 380, duration: 0.32, type: 'triangle', volume: 0.09 });
     }
-    if (flockEnergy > 0) this.contributeFlockEnergy(flockEnergy, reason);
+    if (flockEnergy > 0 && this.state.bossWins < bossTargetForLevel(this.state.level)) this.contributeFlockEnergy(flockEnergy, reason);
     this.#emitState();
     return this.snapshot();
   }
@@ -133,7 +151,11 @@ export class WorldEvolutionSystem {
   contributeFlockEnergy(amount, reason = 'Adventure') {
     const contribution = Math.max(1, Math.min(30, Math.floor(Number(amount) || 0)));
     if (this.engine.network.client?.connected) {
-      this.engine.network.sendWorldEvent('flock-energy', { amount: contribution, reason: String(reason).slice(0, 48) });
+      this.engine.network.sendWorldEvent('flock-energy', {
+        amount: contribution,
+        reason: String(reason).slice(0, 48),
+        evolutionLevel: this.state.level,
+      });
       return;
     }
     const nextEnergy = Math.min(this.shared.flockGoal, this.shared.flockEnergy + contribution);
@@ -141,8 +163,9 @@ export class WorldEvolutionSystem {
   }
 
   completeEvolution() {
-    if (!this.ready) return false;
+    if (!this.ready || this.state.bossWins < bossTargetForLevel(this.state.level)) return false;
     const oldStage = this.stage;
+    const oldLevel = this.state.level;
     this.state.xp = Math.max(0, this.state.xp - this.goal);
     this.state.level += 1;
     this.state.cycle += 1;
@@ -151,6 +174,10 @@ export class WorldEvolutionSystem {
     this.#applyLayer({ announce: true });
     this.scene.player.heal?.(this.scene.player.maxHp, this.engine);
     this.scene.player.jumpsRemaining = this.scene.player.maxJumps;
+    const ammo = Math.max(0, Number(this.engine.save.get('progress.crumbAmmo', 0)) || 0);
+    const supply = 3 + Math.min(3, Math.floor(this.state.level / 2));
+    this.engine.save.set('progress.crumbAmmo', ammo + supply);
+    this.engine.events.emit('player:ammo', { ammo: ammo + supply, gained: supply });
     this.engine.entities.add(new WingBurst({
       x: this.scene.player.x,
       y: this.scene.player.y - 30,
@@ -162,7 +189,11 @@ export class WorldEvolutionSystem {
     this.engine.events.emit('achievement:unlock', { id: 'world-evolved' });
     this.engine.network.sendAction('evolution', { x: this.scene.player.x, y: this.scene.player.y, strength: this.state.level });
     const mutations = this.lastLayout?.mutations?.length ? ` ${this.lastLayout.mutations.join(' · ')}.` : '';
-    this.engine.ui.toast(`${this.stage.name} has emerged! New routes, collectibles, foxes, and scenery now fill Goose Green.${mutations}`, { type: 'success', duration: 6200 });
+    this.engine.ui.toast(`${this.stage.name} has emerged! Echo Supply +${supply} crumbs. New routes, collectibles, foxes, and scenery now fill Goose Green.${mutations}`, { type: 'success', duration: 6200 });
+    if (oldLevel < ADVANCED_GOOSE_UNLOCK_LEVEL && this.state.level >= ADVANCED_GOOSE_UNLOCK_LEVEL) {
+      const names = advancedGooseUnlocks().map((item) => item.name).join(' + ');
+      this.engine.ui.toast(`ADVANCED GEESE UNLOCKED! ${names} are now selectable from the main menu.`, { type: 'success', duration: 7000 });
+    }
     this.#emitState();
     return true;
   }
@@ -266,8 +297,11 @@ export class WorldEvolutionSystem {
     this.shared = {
       ...this.shared,
       flockEnergy: Math.max(0, Number(worldState.flockEnergy ?? this.shared.flockEnergy) || 0),
-      flockGoal: Math.max(1, Number(worldState.flockGoal ?? this.shared.flockGoal) || 180),
-      bossWins: Math.max(0, Number(worldState.bossWins ?? this.shared.bossWins) || 0),
+      flockGoal: Math.max(
+        Math.min(900, 180 + this.state.bossWins * 45),
+        Number(worldState.flockGoal ?? this.shared.flockGoal) || 180,
+      ),
+      bossWins: Math.max(this.state.bossWins, Number(worldState.bossWins ?? this.shared.bossWins) || 0),
       boss: worldState.boss ?? this.shared.boss,
     };
     if (this.shared.boss?.defeated && !this.lastBossRewardKey) {
@@ -293,49 +327,67 @@ export class WorldEvolutionSystem {
 
   #createOfflineBossState() {
     if (this.shared.boss?.active) return this.shared.boss;
-    const cycle = this.shared.bossWins + 1;
-    const maxHp = 32 + cycle * 10;
-    return { id: `baron-breadstorm-${cycle}`, active: true, defeated: false, hp: maxHp, maxHp, phase: 1, shield: 4, maxShield: 4, cycle };
+    const cycle = Math.max(this.shared.bossWins, this.state.bossWins) + 1;
+    const evolutionLevel = this.state.level;
+    const { maxHp, maxShield } = breadstormStats({ cycle, players: 1, evolutionLevel });
+    const shieldEnabled = breadstormShieldUnlocked(evolutionLevel);
+    const phaseShieldsEnabled = breadstormPhaseShieldUnlocked(evolutionLevel);
+    return { id: `baron-breadstorm-${cycle}`, active: true, defeated: false, hp: maxHp, maxHp, phase: 1, shield: maxShield, maxShield, shieldEnabled, phaseShieldsEnabled, evolutionLevel, players: 1, cycle, spawnedAt: Date.now() };
   }
 
   #applyOfflineBossHit({ damage = 1, hitType = 'attack' } = {}) {
     const boss = this.shared.boss;
     if (!boss?.active || boss.defeated) return;
     if (boss.shield > 0) {
-      if (hitType === 'honk') boss.shield = Math.max(0, boss.shield - Math.ceil(Math.max(1, damage) * 2));
+      if (hitType === 'honk') boss.shield = Math.max(0, boss.shield - breadstormShieldDamage(damage));
     } else {
-      boss.hp = Math.max(0, boss.hp - Math.max(1, damage));
+      boss.hp = Math.max(0, boss.hp - breadstormHeartDamage(damage));
       const ratio = boss.hp / Math.max(1, boss.maxHp);
       const nextPhase = ratio <= 0.33 ? 3 : ratio <= 0.66 ? 2 : 1;
       if (nextPhase > boss.phase && boss.hp > 0) {
         boss.phase = nextPhase;
-        boss.maxShield = 3 + nextPhase * 2;
+        boss.maxShield = breadstormPhaseShield({
+          phase: nextPhase,
+          cycle: boss.cycle,
+          evolutionLevel: boss.evolutionLevel,
+          phaseShieldsEnabled: boss.phaseShieldsEnabled ?? breadstormPhaseShieldUnlocked(boss.evolutionLevel),
+        });
         boss.shield = boss.maxShield;
       }
       if (boss.hp <= 0) {
         boss.active = false;
         boss.defeated = true;
         boss.defeatedAt = Date.now();
-        this.shared.bossWins += 1;
+        this.shared.bossWins = Math.max(this.shared.bossWins + 1, boss.cycle);
       }
     }
     this.#applySharedEvent({ event: 'boss-hit', boss: { ...boss }, bossWins: this.shared.bossWins });
   }
 
   #syncBoss(bossState) {
+    const bossRequired = this.state.bossWins < bossTargetForLevel(this.state.level);
+    if (!bossRequired) {
+      if (this.boss && !this.boss.destroyed) this.engine.entities.removeImmediate(this.boss);
+      this.boss = null;
+      return;
+    }
     if (bossState?.active && !bossState.defeated) {
       if (!this.boss || this.boss.destroyed) {
-        this.boss = new BreadstormBoss({ state: bossState, x: 8820, y: 770 });
+        this.boss = new BreadstormBoss({ state: bossState, x: BREADSTORM_ENCOUNTER.x, y: BREADSTORM_ENCOUNTER.y });
         this.engine.entities.addImmediate(this.boss, this.scene.root);
         this.engine.physics.addCollider(this.boss.collider);
-        this.engine.ui.toast('FLOCK CRISIS! Baron Breadstorm has invaded Foxfire Fortress!', { type: 'danger', duration: 5200 });
+        const coOp = Number(bossState.players) > 1 ? ` ${bossState.players} same-Echo geese share his hearts.` : '';
+        this.engine.ui.toast(`FLOCK CRISIS! Breadstorm Form ${bossState.cycle || 1} has invaded ${BREADSTORM_ENCOUNTER.zone}!${coOp}`, { type: 'danger', duration: 5200 });
         this.engine.audio.sfx.tone({ frequency: 110, slide: -45, duration: 0.7, type: 'sawtooth', volume: 0.12 });
         this.engine.events.emit('boss:started', { boss: this.boss, state: bossState });
       } else {
         const previousPhase = this.boss.phase;
         this.boss.applySharedState(bossState);
         if (this.boss.phase !== previousPhase) {
-          this.engine.ui.toast(`Baron Breadstorm entered Phase ${this.boss.phase}! HONK through the Echo Shield!`, { type: 'warning', duration: 3600 });
+          const message = this.boss.shield > 0
+            ? `Baron Breadstorm entered Phase ${this.boss.phase}! HONK through the Echo Shield!`
+            : `Baron Breadstorm entered Phase ${this.boss.phase}! Keep attacking!`;
+          this.engine.ui.toast(message, { type: 'warning', duration: 3600 });
           this.engine.renderer.camera.shake(14, 0.4);
         }
       }
@@ -346,13 +398,17 @@ export class WorldEvolutionSystem {
       const rewardKey = `${bossState.id}:${bossState.defeatedAt || bossState.cycle}`;
       if (this.lastBossRewardKey !== rewardKey) {
         this.lastBossRewardKey = rewardKey;
-        this.state.bossWins += 1;
+        this.state.bossWins = Math.max(
+          this.state.bossWins + 1,
+          Number(bossState.cycle) || 0,
+          Number(this.shared.bossWins) || 0,
+        );
         this.#persist(true);
         this.addXp(120 + this.state.level * 15, 'Baron Breadstorm defeated', { flockEnergy: 0 });
         this.engine.events.emit('achievement:unlock', { id: 'breadstorm-breaker' });
         this.engine.events.emit('boss:defeated', { boss: this.boss, state: bossState });
         this.engine.ui.toast('BARON BREADSTORM DEFEATED! The flock changed Goose Green forever.', { type: 'success', duration: 6000 });
-        this.engine.entities.add(new WingBurst({ x: this.boss?.x ?? 8820, y: this.boss?.y ?? 770, color: 0xffd95a, count: 42, label: 'HONKING VICTORY!' }), this.scene.root);
+        this.engine.entities.add(new WingBurst({ x: this.boss?.x ?? BREADSTORM_ENCOUNTER.x, y: this.boss?.y ?? BREADSTORM_ENCOUNTER.y, color: 0xffd95a, count: 42, label: 'HONKING VICTORY!' }), this.scene.root);
       }
       if (this.boss && !this.boss.destroyed) this.engine.entities.removeImmediate(this.boss);
       this.boss = null;

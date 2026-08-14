@@ -1,5 +1,4 @@
 /* Deedz the Goose — progression clarity pass */
-.deedz-hud--progression [data-jumps],
 .deedz-hud--progression [data-network] { display:none; }
 .deedz-hud--progression { gap:12px; }
 .deedz-hud--progression .deedz-hud__group--primary { max-width:42vw; }

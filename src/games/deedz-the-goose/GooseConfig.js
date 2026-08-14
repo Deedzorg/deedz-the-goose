@@ -1,4 +1,4 @@
-import { cloneDefaultInputBindings } from '../../engine/input/InputMap.js';
+import { cloneDefaultInputBindings, migrateDefaultControllerLayout } from '../../engine/input/InputMap.js';
 
 export const GooseConfig = Object.freeze({
   engine: { debug: import.meta.env.DEV },
@@ -7,7 +7,7 @@ export const GooseConfig = Object.freeze({
   physics: { gravityY: 1900, cellSize: 160 },
   save: {
     namespace: 'deedz-the-goose-v1',
-    version: 6,
+    version: 7,
     migrations: {
       2: (data) => ({
         ...data,
@@ -79,6 +79,23 @@ export const GooseConfig = Object.freeze({
           screenShake: true,
           ...(data.settings ?? {}),
           controls: { ...cloneDefaultInputBindings(), ...(data.settings?.controls ?? {}) },
+        },
+      }),
+      7: (data) => ({
+        ...data,
+        settings: {
+          ...(data.settings ?? {}),
+          controls: migrateDefaultControllerLayout(data.settings?.controls ?? cloneDefaultInputBindings()),
+        },
+        progress: {
+          ...(data.progress ?? {}),
+          evolution: {
+            ...(data.progress?.evolution ?? {}),
+            bossWins: Math.max(
+              Math.max(0, Number(data.progress?.evolution?.bossWins) || 0),
+              Math.max(0, (Number(data.progress?.evolution?.level) || 1) - 1),
+            ),
+          },
         },
       }),
     },

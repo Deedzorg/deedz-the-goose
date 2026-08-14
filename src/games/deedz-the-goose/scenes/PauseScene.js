@@ -79,7 +79,8 @@ export class PauseScene extends Scene {
     this.screen.element.appendChild(panel);
     this.engine.ui.register(this.screen);
     this.engine.ui.show(this.screen.id);
-    this.resume.focus();
+    this.resume.focus({ preventScroll: true });
+    this.screen.element.scrollTop = 0;
   }
 
   async #leavePause(sceneId, data = {}) {

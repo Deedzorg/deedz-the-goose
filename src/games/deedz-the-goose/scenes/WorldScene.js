@@ -19,8 +19,9 @@ import { WorldSafetySystem, resolveSafeSpawn, supportingPlatformForSpawn } from 
 import { FlockSenseSystem } from '../systems/FlockSenseSystem.js';
 import { TouchControls } from '../ui/TouchControls.js';
 import { achievements } from '../data/achievements.js';
-import { characters } from '../data/characters.js';
+import { characters, isGooseClassUnlocked } from '../data/characters.js';
 import { levels } from '../data/levels.js';
+import { BREADSTORM_ENCOUNTER, bossTargetForLevel } from '../data/progression.js';
 
 export class WorldScene extends Scene {
   constructor() {
@@ -224,7 +225,10 @@ export class WorldScene extends Scene {
     const restartMission = Boolean(options?.restartMission);
     if (restartMission) this.engine.save.set('progress.checkpoint', null, { immediate: true });
     const selectedId = this.engine.save.get('profile.character', 'deedz');
-    const character = characters.find((item) => item.id === selectedId) ?? characters[0];
+    const evolutionLevel = Math.max(1, Number(this.engine.save.get('progress.evolution.level', 1)) || 1);
+    const selectedCharacter = characters.find((item) => item.id === selectedId);
+    const character = selectedCharacter && isGooseClassUnlocked(selectedCharacter, evolutionLevel) ? selectedCharacter : characters[0];
+    if (character !== selectedCharacter) this.engine.save.set('profile.character', 'classic');
     const savedCheckpointId = restartMission ? null : this.engine.save.get('progress.checkpoint', null);
     const savedCheckpoint = this.checkpoints.find((checkpoint) => checkpoint.checkpointId === savedCheckpointId);
     if (savedCheckpoint) savedCheckpoint.activate();
@@ -252,11 +256,13 @@ export class WorldScene extends Scene {
       this.engine.physics.addCollider(enemy.collider);
     }
 
-    this.exit = new LevelExit(this.level.exit);
-    this.exit.setLocked(true);
-    this.engine.entities.addImmediate(this.exit, this.root);
-    this.engine.physics.addBody(this.exit, { static: true });
-    this.engine.physics.addCollider(this.exit.collider);
+    // Keep this distinct from Scene.exit(), which is required for every menu
+    // transition to tear the world down safely.
+    this.levelExit = new LevelExit(this.level.exit);
+    this.levelExit.setLocked(true);
+    this.engine.entities.addImmediate(this.levelExit, this.root);
+    this.engine.physics.addBody(this.levelExit, { static: true });
+    this.engine.physics.addCollider(this.levelExit.collider);
   }
 
   #stabilizeSpawn(restarted = false) {
@@ -345,10 +351,14 @@ export class WorldScene extends Scene {
     const active = this.engine.entities.findByTag('crystal').filter((crystal) => crystal.activated).length;
     this.activeCrystals = active;
     this.#updateAdventureHud();
-    this.exit?.setLocked(active < this.level.requiredCrystals || !this.evolution?.ready || Boolean(this.evolution?.shared?.boss?.active));
+    const bossReady = (this.evolution?.state?.bossWins ?? 0) >= bossTargetForLevel(this.evolution?.state?.level ?? 1);
+    this.levelExit?.setLocked(active < this.level.requiredCrystals || !this.evolution?.ready || !bossReady);
     if (active === this.level.requiredCrystals && !this.crystalGateAnnounced) {
       this.crystalGateAnnounced = true;
-      this.engine.ui.toast('All Echo Crystals are awake! Fill the Echo meter to evolve the world at Foxfire Gate.', { type: 'success', duration: 4200 });
+      const message = bossTargetForLevel(this.evolution?.state?.level ?? 1) === 0
+        ? 'All Echo Crystals are awake! Fill the Echo meter, then reach the Foxfire Gate.'
+        : `All Echo Crystals are awake! Fill the Echo meter, then find Breadstorm in ${BREADSTORM_ENCOUNTER.zone}.`;
+      this.engine.ui.toast(message, { type: 'success', duration: 4400 });
       this.engine.events.emit('achievement:unlock', { id: 'echo-master' });
     }
   }
@@ -356,11 +366,17 @@ export class WorldScene extends Scene {
   #updateEvolutionHud(state = this.evolution?.snapshot?.()) {
     if (!state) return;
     if (this.hudEvolution) this.hudEvolution.textContent = `Echo L${state.level} · ${state.xp}/${state.goal}${state.ready ? ' READY' : ''}`;
-    if (this.hudFlock) this.hudFlock.textContent = `Flock ${state.shared.flockEnergy}/${state.shared.flockGoal}`;
+    const bossTarget = bossTargetForLevel(state.level);
+    const bossRequired = Number(state.bossWins) < bossTarget;
+    if (this.hudFlock) {
+      this.hudFlock.hidden = !bossRequired;
+      this.hudFlock.textContent = `Boss Charge ${state.shared.flockEnergy}/${state.shared.flockGoal}`;
+    }
     if (this.hudBoss) {
       const boss = state.shared.boss;
+      this.hudBoss.hidden = !bossRequired;
       this.hudBoss.textContent = boss?.active
-        ? `Breadstorm P${boss.phase} · ${boss.hp}/${boss.maxHp}${boss.shield > 0 ? ` · Shield ${boss.shield}` : ''}`
+        ? `Breadstorm Form ${boss.cycle || 1} · Hearts ${boss.hp}/${boss.maxHp}${boss.shield > 0 ? ` · Shield ${boss.shield}` : ''}${boss.players > 1 ? ` · ${boss.players} geese` : ''}`
         : `Boss Wins ${state.shared.bossWins}`;
       const nextIntensity = boss?.active ? Math.min(1, 0.34 + (Number(boss.phase) || 1) * 0.2) : 0;
       if (Math.abs(nextIntensity - (this.musicIntensity ?? 0)) > 0.05) {
@@ -429,9 +445,16 @@ export class WorldScene extends Scene {
       this.engine.ui.toast(`The Foxfire Gate needs ${this.level.requiredCrystals - activeCrystals} more Echo Crystal${this.level.requiredCrystals - activeCrystals === 1 ? '' : 's'}. HONK!`, { type: 'warning', duration: 2600 });
       return;
     }
-    if (this.evolution?.shared?.boss?.active) {
+    const bossRequired = (this.evolution?.state?.bossWins ?? 0) < bossTargetForLevel(this.evolution?.state?.level ?? 1);
+    if (bossRequired && this.evolution?.shared?.boss?.active) {
       this.exitWarningCooldown = 2;
-      this.engine.ui.toast('Baron Breadstorm is warping the gate. Defeat the boss with the flock first!', { type: 'danger', duration: 3000 });
+      this.engine.ui.toast(`Baron Breadstorm is blocking evolution from ${BREADSTORM_ENCOUNTER.zone}. Defeat him first!`, { type: 'danger', duration: 3000 });
+      return;
+    }
+    if ((this.evolution?.state?.bossWins ?? 0) < bossTargetForLevel(this.evolution?.state?.level ?? 1)) {
+      this.exitWarningCooldown = 2;
+      const shared = this.evolution?.shared ?? {};
+      this.engine.ui.toast(`Breadstorm must fall before the gate opens. Boss Charge ${shared.flockEnergy ?? 0}/${shared.flockGoal ?? 180}.`, { type: 'warning', duration: 3000 });
       return;
     }
     if (!this.evolution?.ready) {
@@ -472,13 +495,9 @@ export class WorldScene extends Scene {
     this.#resolvePlatforms();
     if (this.safety?.fixedUpdate(dt)) return;
     for (const enemy of this.engine.entities.findByTag('enemy')) {
-      if (enemy.y > this.level.height + 260) {
-        enemy.x = enemy.spawn.x;
-        enemy.y = enemy.spawn.y;
-        enemy.velocity.x = 0;
-        enemy.velocity.y = 0;
-        enemy.grounded = false;
-      }
+      if (enemy.hasTag?.('boss') || enemy.y <= this.level.height + 80) continue;
+      if (enemy.wasRecentlyPlayerPushed?.(this.engine)) this.contactDamage?.defeatEnemy(enemy, 'fall', this.player);
+      else enemy.resetToSpawn?.();
     }
     this.story.update(this.player);
     this.#updateJumpHud();

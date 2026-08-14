@@ -16,7 +16,7 @@ import { PluginManager } from './plugins/PluginManager.js';
 import { Diagnostics } from './debug/Diagnostics.js';
 
 export function shouldSimulateWorld(scenes) {
-  return Boolean(scenes && !scenes.transitioning && !scenes.active?.blocksWorld);
+  return Boolean(scenes?.active && !scenes.transitioning && !scenes.active.blocksWorld);
 }
 
 export class DeedzEngine {

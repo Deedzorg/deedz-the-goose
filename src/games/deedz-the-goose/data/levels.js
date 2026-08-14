@@ -101,9 +101,9 @@ export const levels = Object.freeze([
     enemies: [
       { id: 'meadow-scout', x: 980, y: 850, patrol: 180, rank: 'scout' },
       { id: 'cloud-guard', x: 2390, y: 860, patrol: 240, rank: 'guard' },
-      { id: 'ruin-scout', x: 3310, y: 820, patrol: 190, rank: 'scout' },
+      { id: 'ruin-scout', x: 3310, y: 820, patrol: 190, rank: 'scout', archetype: 'pouncer', name: 'Pounce Fox' },
       { id: 'ravine-guard', x: 4670, y: 900, patrol: 230, rank: 'guard' },
-      { id: 'woods-scout', x: 5880, y: 840, patrol: 220, rank: 'scout' },
+      { id: 'woods-scout', x: 5880, y: 840, patrol: 220, rank: 'scout', archetype: 'pouncer', name: 'Pounce Fox' },
       { id: 'pass-guard', x: 7050, y: 880, patrol: 190, rank: 'guard' },
       { id: 'fortress-guard', x: 8350, y: 820, patrol: 210, rank: 'guard' },
       { id: 'bread-captain', x: 8870, y: 800, patrol: 300, rank: 'captain', name: 'Captain Crust' },

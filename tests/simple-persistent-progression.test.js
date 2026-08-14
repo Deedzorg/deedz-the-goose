@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { adventureScore, nextAdventureDirective } from '../src/games/deedz-the-goose/systems/AdventureProgressionSystem.js';
 
-test('core advancement is crystals then XP then the Foxfire Gate with no boss requirement', () => {
+test('core advancement introduces the gate first, Breadstorm second, and shields after the early forms', () => {
   const crystals = nextAdventureDirective({ activeCrystals: 1, requiredCrystals: 3, level: 1, xp: 0, xpGoal: 120 });
   assert.equal(crystals.phase, 'crystals');
   assert.match(crystals.title, /CRYSTALS 1\/3/);
@@ -12,12 +12,23 @@ test('core advancement is crystals then XP then the Foxfire Gate with no boss re
   assert.equal(xp.phase, 'xp');
   assert.match(xp.detail, /30 XP/);
 
-  const gate = nextAdventureDirective({ activeCrystals: 3, requiredCrystals: 3, level: 1, xp: 120, xpGoal: 120 });
-  assert.equal(gate.phase, 'gate');
-  assert.match(gate.title, /ECHO LAYER 2/);
+  const firstGate = nextAdventureDirective({ activeCrystals: 3, requiredCrystals: 3, level: 1, xp: 120, xpGoal: 120, bossWins: 0, bossTarget: 0 });
+  assert.equal(firstGate.phase, 'gate');
 
-  const combined = JSON.stringify([crystals, xp, gate]);
-  assert.doesNotMatch(combined, /Breadstorm|Flock Energy|Boss Charge/i);
+  const summon = nextAdventureDirective({ activeCrystals: 3, requiredCrystals: 3, level: 2, xp: 165, xpGoal: 165, bossWins: 0, bossTarget: 1, flockEnergy: 150, flockGoal: 180 });
+  assert.equal(summon.phase, 'summon');
+
+  const firstBoss = nextAdventureDirective({ activeCrystals: 3, requiredCrystals: 3, level: 2, xp: 165, xpGoal: 165, bossWins: 0, bossTarget: 1, boss: { active: true, hp: 1, maxHp: 1, phase: 1, shield: 0, shieldEnabled: false } });
+  assert.equal(firstBoss.phase, 'boss-fight');
+  assert.match(firstBoss.detail, /no shield/);
+
+  const shield = nextAdventureDirective({ activeCrystals: 3, requiredCrystals: 3, level: 5, xp: 315, xpGoal: 315, bossWins: 3, bossTarget: 4, boss: { active: true, hp: 4, maxHp: 4, phase: 1, shield: 1, shieldEnabled: true } });
+  assert.equal(shield.phase, 'boss-shield');
+  assert.match(shield.detail, /HONK/);
+
+  const gate = nextAdventureDirective({ activeCrystals: 3, requiredCrystals: 3, level: 2, xp: 165, xpGoal: 165, bossWins: 1, bossTarget: 1 });
+  assert.equal(gate.phase, 'gate');
+  assert.match(gate.title, /ECHO LAYER 3/);
 });
 
 test('adventure score rewards persistent progression and play', () => {
@@ -28,14 +39,14 @@ test('adventure score rewards persistent progression and play', () => {
   assert.ok(fighter > start);
 });
 
-test('live game boots simple progression and input polish instead of legacy mandatory boss systems', async () => {
+test('live game boots persistent progression, input polish, and boss guidance', async () => {
   const gooseGame = await readFile(new URL('../src/games/deedz-the-goose/GooseGame.js', import.meta.url), 'utf8');
   const main = await readFile(new URL('../src/main.js', import.meta.url), 'utf8');
   assert.match(gooseGame, /AdventureProgressionSystem/);
   assert.match(gooseGame, /GameplayInputSystem/);
   assert.doesNotMatch(gooseGame, /new ProgressionDirectorSystem/);
   assert.doesNotMatch(gooseGame, /new GameplayPolishSystem/);
-  assert.doesNotMatch(main, /BossGuidanceSystem/);
+  assert.match(gooseGame, /BossGuidanceSystem/);
 });
 
 test('awakened Echo crystals are saved and restored instead of living only in room memory', async () => {
@@ -46,10 +57,12 @@ test('awakened Echo crystals are saved and restored instead of living only in ro
   assert.match(source, /immediate: true/);
 });
 
-test('legacy multiplayer boss charge is disabled in the active progression runtime', async () => {
+test('boss charge is visible and auto-completes after layer prerequisites', async () => {
   const source = await readFile(new URL('../src/games/deedz-the-goose/systems/AdventureProgressionSystem.js', import.meta.url), 'utf8');
-  assert.match(source, /evolution\.contributeFlockEnergy = \(\) => evolution\.snapshot\(\)/);
-  assert.match(source, /evolution\.shared\.boss = null/);
-  assert.match(source, /flock\.hidden = true/);
-  assert.match(source, /boss\.hidden = true/);
+  assert.match(source, /#maybeChargeBoss/);
+  assert.match(source, /evolution\.contributeFlockEnergy/);
+  assert.match(source, /Boss Charge/);
+  assert.match(source, /flock\.hidden = !bossRequired/);
+  assert.match(source, /boss\.hidden = !bossRequired/);
+  assert.doesNotMatch(source, /#disableLegacyBossGate/);
 });

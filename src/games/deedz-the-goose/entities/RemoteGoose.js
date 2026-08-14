@@ -26,15 +26,9 @@ export class RemoteGoose extends Entity {
   }
 
   #draw() {
-    const character = characters.find((item) => item.id === this.profile.character) ?? characters[0];
-    this.character = character;
     this.art = new Container();
     this.body = new Graphics();
-    this.body.ellipse(0, 0, 32, 21).fill({ color: character.color, alpha: 0.88 });
-    this.body.circle(28, -22, 14).fill({ color: character.color, alpha: 0.88 });
-    this.body.moveTo(38, -23).lineTo(57, -17).lineTo(38, -12).closePath().fill(0xffa62b);
-    this.body.circle(32, -27, 2.5).fill(0x07111f);
-    this.wing = new Graphics().ellipse(-18, 3, 18, 9).fill({ color: character.accent, alpha: 0.9 });
+    this.wing = new Graphics();
     this.art.addChild(this.body, this.wing);
 
     this.label = new Text({
@@ -59,6 +53,22 @@ export class RemoteGoose extends Entity {
     this.bubble.y = -92;
     this.bubble.visible = false;
     this.display.addChild(this.art, this.label, this.levelLabel, this.bubble);
+    this.applyProfile(this.profile);
+  }
+
+  applyProfile(profile = {}) {
+    const nextProfile = { ...this.profile, ...profile };
+    if (this.character && nextProfile.name === this.profile.name && nextProfile.character === this.profile.character) return this;
+    this.profile = nextProfile;
+    this.character = characters.find((item) => item.id === this.profile.character) ?? characters[0];
+    this.body.clear()
+      .ellipse(0, 0, 32, 21).fill({ color: this.character.color, alpha: 0.88 })
+      .circle(28, -22, 14).fill({ color: this.character.color, alpha: 0.88 })
+      .moveTo(38, -23).lineTo(57, -17).lineTo(38, -12).closePath().fill(0xffa62b)
+      .circle(32, -27, 2.5).fill(0x07111f);
+    this.wing.clear().ellipse(-18, 3, 18, 9).fill({ color: this.character.accent, alpha: 0.9 });
+    if (this.label) this.label.text = this.profile.name || 'Goose';
+    return this;
   }
 
   applyState(state) {
@@ -75,8 +85,8 @@ export class RemoteGoose extends Entity {
 
   react(action, payload = {}) {
     this.action = action;
-    this.actionTime = action === 'honk' ? 0.55 : action === 'wing-bump' ? 0.48 : action === 'evolution' ? 0.9 : action === 'throw' ? 0.42 : 0.3;
-    this.bubble.text = action === 'honk' ? 'HONK!' : action === 'wing-bump' ? 'BUMP!' : action === 'attack' ? 'WHAP!' : action === 'throw' ? 'YEET!' : action === 'evolution' ? 'EVOLVED!' : '';
+    this.actionTime = action === 'honk' ? 0.55 : action === 'wing-bump' ? 0.48 : action === 'evolution' ? 0.9 : action === 'throw' ? 0.42 : action === 'peck' ? 0.24 : 0.3;
+    this.bubble.text = action === 'honk' ? 'HONK!' : action === 'wing-bump' ? 'BUMP!' : action === 'attack' ? 'WHAP!' : action === 'peck' ? 'PECK!' : action === 'throw' ? 'YEET!' : action === 'evolution' ? 'EVOLVED!' : '';
     this.bubble.visible = Boolean(this.bubble.text);
     if (action === 'wing-bump') {
       this.y -= 12;
@@ -106,6 +116,7 @@ export class RemoteGoose extends Entity {
       if (this.action === 'honk') this.art.scale.y = 0.92 + Math.sin(actionProgress * Math.PI * 4) * 0.12;
       else if (this.action === 'attack') this.art.x = this.target.facing * 12 * Math.sin(actionProgress * Math.PI);
       else if (this.action === 'throw') this.art.x = this.target.facing * 10 * Math.sin(actionProgress * Math.PI);
+      else if (this.action === 'peck') this.art.x = this.target.facing * 13 * Math.sin(actionProgress * Math.PI);
       else if (this.action === 'wing-bump') this.art.rotation = Math.sin(actionProgress * Math.PI * 3) * 0.14;
       this.bubble.alpha = Math.min(1, this.actionTime * 4);
       this.bubble.y = -92 - (1 - actionProgress) * 16;

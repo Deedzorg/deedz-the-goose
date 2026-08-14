@@ -1,4 +1,5 @@
 import { distance } from '../../../shared/math.js';
+import { PECK_PROFILE, WING_WHAP_PROFILE } from '../data/combat.js';
 import { HonkPulse, WingBurst } from '../entities/ActionEffects.js';
 import { CrumbProjectile } from '../entities/CrumbProjectile.js';
 
@@ -7,7 +8,8 @@ export class CombatSystem {
     this.engine = engine;
     this.parent = parent;
     this.unsubscribers = [
-      engine.events.on('goose:attack', ({ player }) => this.#attack(player, 116, 1, 440, true)),
+      engine.events.on('goose:attack', ({ player }) => this.#attack(player, WING_WHAP_PROFILE, true)),
+      engine.events.on('goose:peck', ({ player }) => this.#peck(player, true)),
       engine.events.on('goose:throw', (payload) => this.#throwCrumb(payload)),
       engine.events.on('goose:honk', (payload) => this.#honk(payload, true, true)),
       engine.events.on('collision:enter', (contact) => this.#projectileCollision(contact)),
@@ -15,16 +17,30 @@ export class CombatSystem {
     ];
   }
 
-  #attack(player, range, damage, knockback, broadcast) {
+  #attack(player, profile, broadcast) {
+    const { range, damage, knockback, knockbackY } = profile;
     let hits = 0;
     for (const enemy of this.engine.entities.findByTag('enemy')) {
       const inFacingDirection = Math.sign(enemy.x - player.x || player.facing) === player.facing;
       if (distance(player.x, player.y, enemy.x, enemy.y) > range || !inFacingDirection) continue;
       const knockbackX = Math.sign(enemy.x - player.x || 1) * knockback;
-      const knockbackY = -260;
       if (this.#damageEnemy(enemy, damage, knockbackX, knockbackY, { kind: 'attack', source: player, broadcast })) hits += 1;
     }
     if (hits) this.engine.events.emit('combat:hit', { player, hits, range, damage });
+  }
+
+  #peck(player, broadcast) {
+    const { range, damage, knockback, knockbackY } = PECK_PROFILE;
+    const target = this.engine.entities.findByTag('enemy')
+      .filter((enemy) => Math.sign(enemy.x - player.x || player.facing) === player.facing)
+      .map((enemy) => ({ enemy, distance: distance(player.x, player.y, enemy.x, enemy.y) }))
+      .filter((entry) => entry.distance <= range)
+      .sort((a, b) => a.distance - b.distance)[0]?.enemy;
+    this.engine.entities.add(new WingBurst({ x: player.x + player.facing * 50, y: player.y - 22, color: 0xffa62b, count: target ? 7 : 3, label: target ? 'PECK!' : '' }), this.parent);
+    if (!target) return;
+    const knockbackX = player.facing * knockback;
+    this.#damageEnemy(target, damage, knockbackX, knockbackY, { kind: 'peck', source: player, broadcast });
+    this.engine.events.emit('combat:hit', { player, hits: 1, range, damage, peck: true });
   }
 
   #throwCrumb({ player, x = player?.x ?? 0, y = player?.y ?? 0, facing = player?.facing ?? 1, damage = 1, strength = 790, lift = 155, duration = 2.2, charge = 0.5, projectileStyle = 'crumb' } = {}) {
@@ -75,12 +91,19 @@ export class CombatSystem {
       enemy.requestHit?.(damage, this.engine, { kind, source });
       return true;
     }
-    enemy.takeDamage?.(damage, this.engine);
+    const wasDefeated = Boolean(enemy.defeated);
+    enemy.takeDamage?.(damage, this.engine, { cause: kind, source });
     enemy.velocity.x = knockbackX;
     enemy.velocity.y = knockbackY;
     if (broadcast) {
       this.engine.network.sendWorldEvent('enemy-hit', { enemyId: enemy.enemyId, damage, knockbackX, knockbackY });
-      if (enemy.hp <= 0) this.engine.network.sendWorldEvent('enemy-defeated', { enemyId: enemy.enemyId });
+      if (!wasDefeated && enemy.defeated) {
+        this.engine.network.sendWorldEvent('enemy-defeated', {
+          enemyId: enemy.enemyId,
+          cause: kind,
+          crumbCount: enemy.crumbDropCount?.() ?? 2,
+        });
+      }
     }
     return true;
   }
@@ -111,12 +134,18 @@ export class CombatSystem {
     if (event.event === 'enemy-hit') {
       const enemy = this.engine.entities.get(`enemy-${event.enemyId}`);
       if (!enemy || enemy.destroyed) return;
-      enemy.takeDamage?.(Number(event.damage) || 1, this.engine);
+      enemy.takeDamage?.(Number(event.damage) || 1, this.engine, { cause: 'combat', reward: false });
       enemy.velocity.x = Number(event.knockbackX) || 0;
       enemy.velocity.y = Number(event.knockbackY) || -220;
     } else if (event.event === 'enemy-defeated') {
       const enemy = this.engine.entities.get(`enemy-${event.enemyId}`);
-      if (enemy && !enemy.destroyed) this.engine.entities.remove(enemy);
+      if (enemy && !enemy.destroyed) {
+        enemy.defeat?.(this.engine, {
+          cause: event.cause || 'combat',
+          reward: false,
+          crumbCount: Number(event.crumbCount) || enemy.crumbDropCount?.() || 2,
+        });
+      }
     } else if (event.event === 'crystal-activated') {
       const crystal = this.engine.entities.get(`crystal-${event.crystalId}`);
       crystal?.activate?.(this.engine, { remote: true });

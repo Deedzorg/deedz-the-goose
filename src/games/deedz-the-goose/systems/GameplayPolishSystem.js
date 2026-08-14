@@ -1,3 +1,5 @@
+import { BREADSTORM_ENCOUNTER, bossTargetForLevel } from '../data/progression.js';
+
 const CUSTOM_NAVIGATION_SCREENS = new Set(['pause-ui', 'main-menu-ui']);
 
 export function screenOwnsControllerNavigation(screenId = '') {
@@ -61,7 +63,7 @@ export class GameplayPolishSystem {
       let text = String(message ?? '');
       text = text.replaceAll('Flock Energy', 'Boss Charge');
       if (text.includes('fill Boss Charge and defeat Baron Breadstorm')) {
-        text = 'Echo charged. Baron Breadstorm is being called to Foxfire Fortress. Win the boss challenge to unlock the gate.';
+        text = `Echo charged. Baron Breadstorm is being called to ${BREADSTORM_ENCOUNTER.zone}. Win the boss challenge to unlock the gate.`;
       }
       return this.originalToast.call(engine.ui, text, options);
     };
@@ -99,10 +101,7 @@ export class GameplayPolishSystem {
   }
 
   #bossTarget(state = this.lastEvolution ?? {}) {
-    const saved = Math.max(0, Number(this.engine.save.get('progress.bossGateTarget', 0)) || 0);
-    if (saved > 0) return saved;
-    const wins = Math.max(0, Number(state.bossWins) || 0);
-    return wins > 0 ? wins : 1;
+    return bossTargetForLevel(state.level);
   }
 
   #evolutionChanged(state = {}) {
@@ -127,7 +126,7 @@ export class GameplayPolishSystem {
     if (this.autoBossTimer && this.autoBossLevel === level) return;
     this.#stopAutoBossCharge();
     this.autoBossLevel = level;
-    this.engine.ui.toast('Echo objective complete — calling Baron Breadstorm to Foxfire Fortress now.', { type: 'warning', duration: 4200 });
+    this.engine.ui.toast(`Echo objective complete — calling Baron Breadstorm to ${BREADSTORM_ENCOUNTER.zone} now.`, { type: 'warning', duration: 4200 });
 
     const tick = () => {
       const world = this.#world();
@@ -171,7 +170,7 @@ export class GameplayPolishSystem {
       const bossComplete = Math.max(0, Number(state.bossWins) || 0) >= this.#bossTarget(state);
       const bossActive = Boolean(state.shared?.boss?.active && !state.shared?.boss?.defeated);
       if (!bossComplete && !bossActive && (state.ready || Number(state.xp) >= Number(state.goal))) {
-        adventure.textContent = `NEXT · BARON BREADSTORM INBOUND — Boss Charge ${energy}/${goal} auto-filling · head to Foxfire Fortress, far right`;
+        adventure.textContent = `NEXT · BARON BREADSTORM INBOUND — Boss Charge ${energy}/${goal} auto-filling · head to ${BREADSTORM_ENCOUNTER.zone}, center map`;
       }
     }
   }

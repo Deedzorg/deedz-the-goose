@@ -1,4 +1,5 @@
 import { collectibleXpValue } from './collectibles.js';
+import { enemyArchetypesForLevel, enemyDefinition } from './enemies.js';
 
 const STAGE_COUNT = 6;
 
@@ -225,6 +226,7 @@ export function generateEvolutionLayout({
   const usableWidth = Math.max(1200, width - margin * 2);
   const platformCount = stage.platformCount + Math.min(14, Math.floor((normalizedLevel - 1) / 2));
   const enemyCount = stage.enemyCount + Math.min(10, Math.floor((normalizedLevel - 1) / 3));
+  const archetypePool = enemyArchetypesForLevel(normalizedLevel);
 
   for (let index = 0; index < platformCount; index += 1) {
     const band = (index + 0.5) / platformCount;
@@ -269,14 +271,19 @@ export function generateEvolutionLayout({
     const x = margin + ((index + 0.5) / enemyCount) * usableWidth + (random() - 0.5) * 440;
     const rankRoll = random();
     const rank = normalizedLevel >= 5 && rankRoll > 0.68 ? 'captain' : normalizedLevel >= 2 && rankRoll > 0.44 ? 'guard' : 'scout';
+    const archetype = index < archetypePool.length
+      ? archetypePool[index]
+      : archetypePool[Math.floor(random() * archetypePool.length) % archetypePool.length];
+    const definition = enemyDefinition(archetype);
     enemies.push({
       id: `echo-fox-${normalizedLevel}-${cycle}-${index}`,
       x: Math.round(x),
       y: groundY - 85,
       patrol: 140 + Math.floor(random() * 200),
       rank,
+      archetype,
       level: normalizedLevel,
-      name: rank === 'captain' ? 'Echo Captain' : 'Echo Bread Fox',
+      name: rank === 'captain' ? `Echo Captain · ${definition.name}` : definition.name,
     });
   }
 
@@ -354,6 +361,8 @@ export function generateEvolutionLayout({
 
   const mutations = [
     normalizedLevel >= 2 ? 'Updraft routes' : null,
+    normalizedLevel >= 2 ? 'Crumb Lobbers' : 'Pounce Foxes',
+    normalizedLevel >= 3 ? 'Armored Toast Guards' : null,
     normalizedLevel >= 4 ? 'Phasing platforms' : null,
     normalizedLevel >= 5 ? 'Rare Echo Caches' : null,
     normalizedLevel >= 6 ? 'Infinite palette shift' : null,

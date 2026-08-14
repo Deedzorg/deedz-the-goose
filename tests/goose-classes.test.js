@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { gooseClasses, gooseColors, networkCharacterId, resolveCharacter, setActiveGooseColor } from '../src/games/deedz-the-goose/data/characters.js';
+import {
+  ADVANCED_GOOSE_UNLOCK_LEVEL,
+  advancedGooseUnlocks,
+  gooseClasses,
+  gooseColors,
+  isGooseClassUnlocked,
+  networkCharacterId,
+  resolveCharacter,
+  setActiveGooseColor,
+} from '../src/games/deedz-the-goose/data/characters.js';
 
 const lowerIsBuff = new Set(['dashCooldown', 'honkCooldown']);
 
@@ -38,6 +47,16 @@ test('class and goose color are independent and network-safe', () => {
   const remote = resolveCharacter('guardian', 'rose');
   assert.equal(remote.stats.health, 8);
   assert.equal(remote.plumageId, 'rose');
+});
+
+test('Guardian and Ember are visible progression rewards unlocked at Echo 10', () => {
+  assert.equal(ADVANCED_GOOSE_UNLOCK_LEVEL, 10);
+  assert.deepEqual(advancedGooseUnlocks().map((item) => item.id), ['guardian', 'firebrand']);
+  assert.equal(isGooseClassUnlocked('classic', 1), true);
+  assert.equal(isGooseClassUnlocked('guardian', 9), false);
+  assert.equal(isGooseClassUnlocked('firebrand', 9), false);
+  assert.equal(isGooseClassUnlocked('guardian', 10), true);
+  assert.equal(isGooseClassUnlocked('firebrand', 10), true);
 });
 
 test('class systems apply advertised modifiers including Ember Fire Feather', async () => {

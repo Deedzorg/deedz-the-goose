@@ -43,17 +43,18 @@ test('authoritative Breadstorm events reach sender, peers, and late joiners', as
     const a = await connectAndJoin(url, 'Deedz'); sockets.push(a.socket);
     const b = await connectAndJoin(url, 'Sweet'); sockets.push(b.socket);
 
-    for (let index = 0; index < 5; index += 1) {
+    for (let index = 0; index < 10; index += 1) {
       const own = waitForMessage(a.socket, 'world:event', (payload) => payload.event === 'flock-energy');
-      a.socket.send(JSON.stringify({ type: 'world:event', payload: { event: 'flock-energy', amount: 30, reason: 'test' } }));
+      a.socket.send(JSON.stringify({ type: 'world:event', payload: { event: 'flock-energy', amount: 30, reason: 'test', evolutionLevel: 5 } }));
       await own;
     }
 
     const senderBoss = waitForMessage(a.socket, 'world:event', (payload) => payload.event === 'flock-energy' && payload.boss?.active);
     const peerBoss = waitForMessage(b.socket, 'world:event', (payload) => payload.event === 'flock-energy' && payload.boss?.active);
-    a.socket.send(JSON.stringify({ type: 'world:event', payload: { event: 'flock-energy', amount: 30, reason: 'summon' } }));
+    a.socket.send(JSON.stringify({ type: 'world:event', payload: { event: 'flock-energy', amount: 30, reason: 'summon', evolutionLevel: 5 } }));
     const [senderState, peerState] = await Promise.all([senderBoss, peerBoss]);
     assert.equal(senderState.boss.id, peerState.boss.id);
+    assert.equal(senderState.boss.cycle, 4);
     assert.equal(senderState.boss.phase, 1);
 
     const senderHit = waitForMessage(a.socket, 'world:event', (payload) => payload.event === 'boss-hit');

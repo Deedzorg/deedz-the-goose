@@ -4,10 +4,11 @@ import { EventBus } from '../src/engine/events/EventBus.js';
 import { SceneManager } from '../src/engine/scenes/SceneManager.js';
 
 class FakeScene {
-  constructor(id, log, { failEnter = false } = {}) {
+  constructor(id, log, { failEnter = false, failExit = false } = {}) {
     this.id = id;
     this.log = log;
     this.failEnter = failEnter;
+    this.failExit = failExit;
     this.loaded = false;
     this.active = false;
     this.root = { removeFromParent() {} };
@@ -16,7 +17,7 @@ class FakeScene {
   async enter() { this.log.push(`enter:${this.id}`); if (this.failEnter) throw new Error('enter failed'); this.active = true; }
   pause() { this.log.push(`pause:${this.id}`); this.active = false; }
   resume() { this.log.push(`resume:${this.id}`); this.active = true; }
-  async exit() { this.log.push(`exit:${this.id}`); this.active = false; }
+  async exit() { this.log.push(`exit:${this.id}`); if (this.failExit) throw new Error('exit failed'); this.active = false; }
   async unload() { this.log.push(`unload:${this.id}`); this.loaded = false; }
   destroy() { this.log.push(`destroy:${this.id}`); }
   fixedUpdate() {}
@@ -54,5 +55,19 @@ test('SceneManager restores the previous scene when a pushed scene fails', async
   assert.equal(manager.active.active, true);
   assert.ok(log.includes('resume:base'));
   assert.ok(log.includes('destroy:bad'));
+  await manager.destroy();
+});
+
+test('SceneManager keeps and resumes a scene when its cleanup fails', async () => {
+  const log = [];
+  const manager = createManager(log);
+  manager.register('world', () => new FakeScene('world', log, { failExit: true }));
+  manager.register('menu', () => new FakeScene('menu', log));
+  await manager.change('world');
+  await assert.rejects(manager.change('menu'), /exit failed/);
+  assert.equal(manager.active.id, 'world');
+  assert.equal(manager.active.active, true);
+  assert.equal(manager.depth, 1);
+  manager.active.failExit = false;
   await manager.destroy();
 });

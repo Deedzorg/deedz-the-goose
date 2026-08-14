@@ -39,14 +39,15 @@ test('spawn lock suppresses entity gravity before the scene spawn guard runs', (
   assert.equal(originalCalls, 1, 'normal player simulation should resume after the lock');
 });
 
-test('desktop mouse and touch both route crumb throwing through the shared throw action', async () => {
+test('desktop mouse and compact touch HUD route crumb throwing through the shared throw action', async () => {
   const polish = await readFile(new URL('../src/games/deedz-the-goose/systems/GameplayPolishSystem.js', import.meta.url), 'utf8');
   const touch = await readFile(new URL('../src/games/deedz-the-goose/ui/TouchControls.js', import.meta.url), 'utf8');
   assert.match(polish, /pointerType !== 'mouse'/);
   assert.match(polish, /setVirtualAction\('throw', 1\)/);
   assert.match(polish, /releaseVirtualAction\('throw'\)/);
   assert.match(touch, /\['throw', 'CRUMB'\]/);
-  assert.match(touch, /\['sense', 'SENSE'\]/);
+  assert.doesNotMatch(touch, /\['sense', 'SENSE'\]/);
+  assert.doesNotMatch(touch, /\['interact', 'BUMP'\]/);
   assert.match(touch, /data-action="pause"/);
 });
 
