@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RoomManager } from './rooms/RoomManager.js';
 import { DeedzWebSocketServer } from './networking/WebSocketServer.js';
 import { LeaderboardStore } from './persistence/LeaderboardStore.js';
+import { PostgresRuntime } from './persistence/PostgresRuntime.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -14,6 +15,7 @@ export function createDeedzServer({
   host = process.env.HOST || '0.0.0.0',
   production = process.env.NODE_ENV === 'production' || process.argv.includes('--production'),
   leaderboardPath = path.join(__dirname, 'data', 'leaderboard.json'),
+  databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || '',
 } = {}) {
   const app = express();
   app.disable('x-powered-by');
@@ -28,16 +30,19 @@ export function createDeedzServer({
   });
   app.use(express.json({ limit: '16kb', strict: true }));
 
-  const leaderboard = new LeaderboardStore(leaderboardPath);
+  const database = new PostgresRuntime(databaseUrl);
+  const leaderboard = new LeaderboardStore(leaderboardPath, { database });
   const rooms = new RoomManager({ maxRoomSize: 64 });
   const startedAt = Date.now();
 
   app.get('/api/health', (_req, res) => res.json({
     ok: true,
     service: 'deedz-engine-server',
-    version: '1.6.1',
+    version: '1.6.2',
     uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
     rooms: rooms.stats(),
+    globalPersistence: database.enabled ? 'postgres' : 'local-fallback',
+    crossInstanceBackplane: database.enabled,
     time: new Date().toISOString(),
   }));
 
@@ -46,15 +51,16 @@ export function createDeedzServer({
     catch (error) { next(error); }
   });
 
+  let sockets;
   app.post('/api/leaderboard', async (req, res, next) => {
     try {
       const entry = await leaderboard.submit(req.body);
-      res.status(201).json({ entry, entries: await leaderboard.top(20) });
+      const entries = await leaderboard.top(20);
+      await sockets?.broadcastLeaderboard(entries);
+      res.status(201).json({ entry, entries });
     } catch (error) { next(error); }
   });
 
-  // API misses must be handled before the production SPA fallback, otherwise
-  // an unknown /api route would incorrectly return index.html with a 200 status.
   app.use('/api/*splat', (_req, res) => res.status(404).json({ error: 'API route not found' }));
 
   if (production) {
@@ -71,27 +77,34 @@ export function createDeedzServer({
   });
 
   const server = createServer(app);
-  const sockets = new DeedzWebSocketServer({ server, rooms, leaderboard });
+  sockets = new DeedzWebSocketServer({ server, rooms, leaderboard, backplane: database });
   let closing = false;
 
-  const start = () => new Promise((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(port, host, () => {
-      server.off('error', reject);
-      const address = server.address();
-      console.log(`[Deedz Engine] Server listening on http://${host}:${typeof address === 'object' ? address.port : port}`);
-      resolve(address);
+  const start = async () => {
+    await database.init();
+    await leaderboard.load();
+    await database.subscribe((event) => sockets.handleBackplane(event));
+    return new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(port, host, () => {
+        server.off('error', reject);
+        const address = server.address();
+        console.log(`[Deedz Engine] Server listening on http://${host}:${typeof address === 'object' ? address.port : port}`);
+        console.log(`[Deedz Engine] Global persistence: ${database.enabled ? 'Postgres + LISTEN/NOTIFY' : 'local fallback (development only)'}`);
+        resolve(address);
+      });
     });
-  });
+  };
 
   const stop = async () => {
     if (closing) return;
     closing = true;
     await sockets.close();
-    await new Promise((resolve) => server.close(resolve));
+    if (server.listening) await new Promise((resolve) => server.close(resolve));
+    await database.close();
   };
 
-  return { app, server, sockets, rooms, leaderboard, start, stop };
+  return { app, server, sockets, rooms, leaderboard, database, start, stop };
 }
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;

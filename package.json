@@ -1,6 +1,6 @@
 {
   "name": "deedz-engine",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": true,
   "description": "Reusable browser game engine powering the evolving multiplayer world of Deedz The Goose.",
   "type": "module",
@@ -21,6 +21,7 @@
   "dependencies": {
     "express": "^5.2.1",
     "pixi.js": "^8.19.0",
+    "postgres": "3.4.9",
     "ws": "^8.21.0"
   },
   "devDependencies": {
